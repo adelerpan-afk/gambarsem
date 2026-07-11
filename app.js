@@ -862,40 +862,45 @@ async function* batchGeneratorByJson(jsonData, format) {
 
   if (mode === 'all') {
     sourcesToProcess = state.sources.slice(); // semua file
+  } else if (mode === 'original') {
+    // Untuk original, kita gunakan semua yang dicentang, tapi tidak perlu looping per source
+    sourcesToProcess = null; // tidak dipakai
   } else {
-    sourcesToProcess = checkedSources(); // hanya yang dicentang
+    // checked
+    sourcesToProcess = checkedSources();
   }
 
-  if (!sourcesToProcess.length) {
-    els.batchStatus.textContent = "Tidak ada file SVG untuk diproses.";
-    return;
+  // Untuk mode original, kita hanya perlu memastikan ada source yang dicentang
+  if (mode === 'original') {
+    if (!checkedSources().length) {
+      els.batchStatus.textContent = "Tidak ada file SVG yang dicentang untuk mode Original.";
+      return;
+    }
+  } else {
+    if (!sourcesToProcess.length) {
+      els.batchStatus.textContent = "Tidak ada file SVG untuk diproses.";
+      return;
+    }
   }
 
-  // Backup status centang semua file
+  // Backup status centang asli (untuk mode checked/all)
   const backupChecked = state.sources.map(src => src.checked);
 
   for (let i = 0; i < jsonData.length; i++) {
     const jsonItem = jsonData[i];
     applySettingsFromObject(jsonItem);
+    const settings = getSettings();
+    const seed = settings.seed || (i + 1);
 
-    for (let s = 0; s < sourcesToProcess.length; s++) {
-      const source = sourcesToProcess[s];
-      // Uncheck semua, lalu centang hanya source ini
-      state.sources.forEach(src => src.checked = false);
-      source.checked = true;
-      renderThumbStrip();
-      updateFileLabel();
-
-      // Generate pattern dengan source ini
+    if (mode === 'original') {
+      // Mode original: gunakan semua file yang dicentang secara bersamaan
+      // Pastikan semua yang dicentang tetap dicentang (tidak diubah)
+      // Generate pattern
       drawPattern();
       await nextFrame();
 
-      const settings = getSettings();
-      const seed = settings.seed || (i + 1);
-      const idxJson = i + 1;
-      const idxSource = s + 1;
-      const baseName = `${source.name.replace(/\.svg$/i, '')}-${idxJson}-${seed}`;
-      els.batchStatus.textContent = `[${idxJson}/${jsonData.length}] [${idxSource}/${sourcesToProcess.length}] ${source.name} (seed ${seed})...`;
+      const baseName = `combined-${i+1}-${seed}`;
+      els.batchStatus.textContent = `[${i+1}/${jsonData.length}] Original combined (seed ${seed})...`;
 
       // Export
       if (format === "png" || format === "both") {
@@ -910,13 +915,50 @@ async function* batchGeneratorByJson(jsonData, format) {
           lastModified: new Date(),
         };
       }
+    } else {
+      // Mode checked atau all: loop per source
+      const sources = mode === 'all' ? state.sources : checkedSources();
+      for (let s = 0; s < sources.length; s++) {
+        const source = sources[s];
+        // Uncheck semua, lalu centang hanya source ini
+        state.sources.forEach(src => src.checked = false);
+        source.checked = true;
+        renderThumbStrip();
+        updateFileLabel();
+
+        drawPattern();
+        await nextFrame();
+
+        const settingsLocal = getSettings();
+        const seedLocal = settingsLocal.seed || (i + 1);
+        const idxJson = i + 1;
+        const idxSource = s + 1;
+        const baseName = `${source.name.replace(/\.svg$/i, '')}-${idxJson}-${seedLocal}`;
+        els.batchStatus.textContent = `[${idxJson}/${jsonData.length}] [${idxSource}/${sources.length}] ${source.name} (seed ${seedLocal})...`;
+
+        if (format === "png" || format === "both") {
+          const blob = await canvasToBlob(els.canvas);
+          if (blob) yield { name: `png/${baseName}.png`, input: blob, lastModified: new Date() };
+        }
+        if (format === "svg" || format === "both") {
+          const svg = buildSvgMarkup(settingsLocal, state.placements);
+          yield {
+            name: `svg/${baseName}.svg`,
+            input: new Blob([svg], { type: "image/svg+xml" }),
+            lastModified: new Date(),
+          };
+        }
+      }
     }
   }
 
-  // Restore backup centang
-  state.sources.forEach((src, idx) => src.checked = backupChecked[idx]);
-  renderThumbStrip();
-  updateFileLabel();
+  // Restore backup centang (untuk mode checked/all)
+  if (mode !== 'original') {
+    state.sources.forEach((src, idx) => src.checked = backupChecked[idx]);
+    renderThumbStrip();
+    updateFileLabel();
+  }
+  // Untuk mode original, centang tidak berubah, jadi tidak perlu restore
 }
 
 async function batchDownloadByJson() {
