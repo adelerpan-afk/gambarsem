@@ -50,6 +50,8 @@ const els = {
   statLargest: document.querySelector("#statLargest"),
   statSmallest: document.querySelector("#statSmallest"),
   statCanvasSize: document.querySelector("#statCanvasSize"),
+  repeatCount: document.querySelector("#repeatCount"),
+  repeatCountValue: document.querySelector("#repeatCountValue"),
 };
 
 const ctx = els.canvas.getContext("2d");
@@ -154,6 +156,10 @@ function updateLabels() {
   els.rotationValue.value = `${els.rotation.value} deg`;
   els.spacingValue.value = `${els.spacing.value} px`;
   els.jitterValue.value = `${els.jitter.value}%`;
+}
+
+function updateRepeatLabel() {
+  els.repeatCountValue.textContent = `${els.repeatCount.value}×`;
 }
 
 function exportSizeLabel(settings = getSettings()) {
@@ -489,13 +495,17 @@ function drawPattern() {
   els.statusText.textContent = `${state.placements.length} objek, ${duplicateCount} salinan tepi${skipped}, canvas ${settings.width} x ${settings.height}px, rasio 16:9.`;
 }
 
+// PERBAIKAN: backgroundSize dibagi dengan repeat, bukan dikali
 function updatePreviewBackground(settings = getSettings()) {
   const scale = numberFrom(els.previewScale) / 100;
+  const repeat = Math.round(numberFrom(els.repeatCount)) || 1;
   const url = els.canvas.toDataURL("image/png");
   const displayW = Math.round(settings.width * scale);
   const displayH = Math.round(settings.height * scale);
+  const tileW = displayW / repeat;
+  const tileH = displayH / repeat;
   els.repeatPreview.style.backgroundImage = `url("${url}")`;
-  els.repeatPreview.style.backgroundSize = `${displayW}px ${displayH}px`;
+  els.repeatPreview.style.backgroundSize = `${tileW}px ${tileH}px`;
   els.tileFrame.style.width = `${displayW}px`;
   els.tileFrame.style.height = `${displayH}px`;
   els.tileFrame.classList.toggle("hidden-border", !els.showTile.checked);
@@ -842,9 +852,15 @@ els.batchDownloadBtn.addEventListener("click", batchDownload);
 els.previewScale.addEventListener("input", () => updatePreviewBackground());
 els.showTile.addEventListener("input", () => updatePreviewBackground());
 
+els.repeatCount.addEventListener("input", () => {
+  updateRepeatLabel();
+  updatePreviewBackground();
+});
+
 updateLabels();
 syncHeightToWidth();
 updateExportLabels();
 setDistribution("random");
 updateFileLabel();
+updateRepeatLabel();
 drawPattern();
