@@ -29,7 +29,8 @@ const els = {
   downloadSvgBtn: document.querySelector("#downloadSvgBtn"),
   batchCount: document.querySelector("#batchCount"),
   batchFormat: document.querySelector("#batchFormat"),
-  batchDownloadBtn: document.querySelector("#batchDownloadBtn"),
+  batchDownloadCountBtn: document.querySelector("#batchDownloadCountBtn"),
+  batchDownloadJsonBtn: document.querySelector("#batchDownloadJsonBtn"),
   batchStatus: document.querySelector("#batchStatus"),
   repeatPreview: document.querySelector("#repeatPreview"),
   tileFrame: document.querySelector("#tileFrame"),
@@ -52,6 +53,13 @@ const els = {
   statCanvasSize: document.querySelector("#statCanvasSize"),
   repeatCount: document.querySelector("#repeatCount"),
   repeatCountValue: document.querySelector("#repeatCountValue"),
+  exportJsonBtn: document.querySelector("#exportJsonBtn"),
+  importJsonInput: document.querySelector("#importJsonInput"),
+  // tombol baru
+  checkAllBtn: document.querySelector("#checkAllBtn"),
+  uncheckAllBtn: document.querySelector("#uncheckAllBtn"),
+  resetFilesBtn: document.querySelector("#resetFilesBtn"),
+  batchMode: document.querySelectorAll('input[name="batchMode"]'),
 };
 
 const ctx = els.canvas.getContext("2d");
@@ -65,6 +73,8 @@ const state = {
   nextSourceId: 1,
   placements: [],
   skippedCount: 0,
+  batchSeeds: [],
+  batchJsonData: null,
 };
 
 const sampleSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 90">
@@ -245,6 +255,39 @@ function renderThumbStrip() {
   });
 }
 
+// ========== MANAJEMEN FILE ==========
+function checkAllFiles() {
+  state.sources.forEach(s => s.checked = true);
+  renderThumbStrip();
+  updateFileLabel();
+  drawPattern();
+}
+
+function uncheckAllFiles() {
+  state.sources.forEach(s => s.checked = false);
+  renderThumbStrip();
+  updateFileLabel();
+  drawPattern();
+}
+
+function resetFiles() {
+  state.sources.forEach(s => URL.revokeObjectURL(s.url));
+  state.sources = [];
+  state.nextSourceId = 1;
+  renderThumbStrip();
+  updateFileLabel();
+  drawPattern();
+}
+
+function getSourceName() {
+  const sources = checkedSources();
+  if (!sources.length) return "pattern";
+  const names = sources.map(s => s.name.replace(/\.svg$/i, ''));
+  if (names.length === 1) return names[0];
+  return names[0] + ` (+${names.length - 1} more)`;
+}
+
+// ========== COLLISION & PLACEMENT ==========
 function edgeAnchor(index, settings, random) {
   const side = index % 4;
   const edgeBand = Math.min(64, Math.min(settings.width, settings.height) * 0.08);
@@ -495,7 +538,6 @@ function drawPattern() {
   els.statusText.textContent = `${state.placements.length} objek, ${duplicateCount} salinan tepi${skipped}, canvas ${settings.width} x ${settings.height}px, rasio 16:9.`;
 }
 
-// PERBAIKAN: backgroundSize dibagi dengan repeat, bukan dikali
 function updatePreviewBackground(settings = getSettings()) {
   const scale = numberFrom(els.previewScale) / 100;
   const repeat = Math.round(numberFrom(els.repeatCount)) || 1;
@@ -693,24 +735,34 @@ function nextFrame() {
   return new Promise((resolve) => requestAnimationFrame(() => resolve()));
 }
 
-async function* batchFileGenerator(count, format) {
-  for (let i = 0; i < count; i += 1) {
-    if (i > 0) els.seed.value = Math.floor(Math.random() * 999999) + 1;
+// ========== BATCH DOWNLOAD BERDASARKAN JUMLAH (COUNT) ==========
+async function* batchGeneratorByCount(count, format) {
+  const seeds = state.batchSeeds && state.batchSeeds.length
+    ? state.batchSeeds.slice(0, count)
+    : Array.from({ length: count }, () => Math.floor(Math.random() * 999999) + 1);
+
+  const sourceName = getSourceName();
+
+  for (let i = 0; i < seeds.length; i++) {
+    const seed = seeds[i];
+    els.seed.value = seed;
     drawPattern();
     await nextFrame();
 
     const settings = getSettings();
-    const seedLabel = els.seed.value;
-    els.batchStatus.textContent = `Membuat gambar ${i + 1}/${count} (seed ${seedLabel})...`;
+    const index = i + 1;
+    els.batchStatus.textContent = `Membuat gambar ${index}/${seeds.length} (seed ${seed})...`;
+
+    const baseName = `${sourceName}-${index}-${seed}`;
 
     if (format === "png" || format === "both") {
       const blob = await canvasToBlob(els.canvas);
-      if (blob) yield { name: `png/pattern-${seedLabel}.png`, input: blob, lastModified: new Date() };
+      if (blob) yield { name: `png/${baseName}.png`, input: blob, lastModified: new Date() };
     }
     if (format === "svg" || format === "both") {
       const svg = buildSvgMarkup(settings, state.placements);
       yield {
-        name: `svg/pattern-${seedLabel}.svg`,
+        name: `svg/${baseName}.svg`,
         input: new Blob([svg], { type: "image/svg+xml" }),
         lastModified: new Date(),
       };
@@ -718,7 +770,7 @@ async function* batchFileGenerator(count, format) {
   }
 }
 
-async function batchDownload() {
+async function batchDownloadByCount() {
   if (!checkedSources().length) {
     els.batchStatus.textContent = "Centang minimal satu SVG dulu.";
     return;
@@ -726,10 +778,8 @@ async function batchDownload() {
 
   const count = clamp(Math.round(numberFrom(els.batchCount)) || 1, 1, 500);
   const format = els.batchFormat.value;
-  const zipName = `batch-pattern-${Date.now()}.zip`;
+  const zipName = `batch-count-${Date.now()}.zip`;
 
-  // Minta lokasi simpan lebih dulu (masih dalam konteks klik user) supaya
-  // showSaveFilePicker tidak ditolak browser, lalu baru mulai proses generate.
   let handle = null;
   if (window.showSaveFilePicker) {
     try {
@@ -747,32 +797,243 @@ async function batchDownload() {
   }
 
   const originalSeed = els.seed.value;
-  els.batchDownloadBtn.disabled = true;
-  els.batchStatus.textContent = "Menyiapkan batch...";
+  els.batchDownloadCountBtn.disabled = true;
+  els.batchStatus.textContent = "Menyiapkan batch berdasarkan jumlah...";
 
   try {
     const { downloadZip } = await import(CLIENT_ZIP_URL);
-    const response = downloadZip(batchFileGenerator(count, format));
+    const response = downloadZip(batchGeneratorByCount(count, format));
 
     if (handle) {
       const writable = await handle.createWritable();
       await response.body.pipeTo(writable);
-      els.batchStatus.textContent = `Selesai. ${count} pattern (seed acak) disimpan ke ${zipName}.`;
+      els.batchStatus.textContent = `Selesai. ${count} pattern (seed dari JSON atau acak) disimpan ke ${zipName}.`;
     } else {
       const blob = await response.blob();
       const url = URL.createObjectURL(blob);
       download(zipName, url);
       window.setTimeout(() => URL.revokeObjectURL(url), 500);
-      els.batchStatus.textContent = `Selesai. ${count} pattern (seed acak) diunduh sebagai ${zipName}.`;
+      els.batchStatus.textContent = `Selesai. ${count} pattern (seed dari JSON atau acak) diunduh sebagai ${zipName}.`;
     }
   } catch (error) {
     els.batchStatus.textContent = `Gagal membuat batch: ${error.message}`;
   } finally {
     els.seed.value = originalSeed;
     drawPattern();
-    els.batchDownloadBtn.disabled = false;
+    els.batchDownloadCountBtn.disabled = false;
   }
 }
+
+// ========== BATCH DOWNLOAD BERDASARKAN JSON ==========
+function applySettingsFromObject(data) {
+  if (data.tileWidth) els.tileWidth.value = data.tileWidth;
+  if (data.tileHeight) els.tileHeight.value = data.tileHeight;
+  if (data.count !== undefined) els.count.value = data.count;
+  if (data.seed !== undefined) els.seed.value = data.seed;
+  if (data.baseScale !== undefined) els.baseScale.value = data.baseScale;
+  if (data.scaleVariance !== undefined) els.scaleVariance.value = data.scaleVariance;
+  if (data.rotation !== undefined) els.rotation.value = data.rotation;
+  if (data.spacing !== undefined) els.spacing.value = data.spacing;
+  if (data.jitter !== undefined) els.jitter.value = data.jitter;
+
+  if (data.distribution) setRadioValue(els.distribution, data.distribution);
+  if (data.randomMode !== undefined) els.randomMode.checked = data.randomMode;
+  if (data.allowEdgeCuts !== undefined) els.allowEdgeCuts.checked = data.allowEdgeCuts;
+
+  if (data.background) {
+    if (data.background.mode) setRadioValue(els.bgMode, data.background.mode);
+    if (data.background.color) els.bgColorPicker.value = data.background.color;
+  }
+
+  if (data.coloring) {
+    if (data.coloring.mode) setRadioValue(els.colorMode, data.coloring.mode);
+    if (data.coloring.singleColor) els.singleColorPicker.value = data.coloring.singleColor;
+    if (data.coloring.colors) els.multiColorHex.value = data.coloring.colors.join(', ');
+  }
+
+  updateLabels();
+  syncHeightToWidth();
+  updateExportLabels();
+}
+
+async function* batchGeneratorByJson(jsonData, format) {
+  const mode = document.querySelector('input[name="batchMode"]:checked')?.value || 'checked';
+  let sourcesToProcess;
+
+  if (mode === 'all') {
+    sourcesToProcess = state.sources.slice(); // semua file
+  } else {
+    sourcesToProcess = checkedSources(); // hanya yang dicentang
+  }
+
+  if (!sourcesToProcess.length) {
+    els.batchStatus.textContent = "Tidak ada file SVG untuk diproses.";
+    return;
+  }
+
+  // Backup status centang semua file
+  const backupChecked = state.sources.map(src => src.checked);
+
+  for (let i = 0; i < jsonData.length; i++) {
+    const jsonItem = jsonData[i];
+    applySettingsFromObject(jsonItem);
+
+    for (let s = 0; s < sourcesToProcess.length; s++) {
+      const source = sourcesToProcess[s];
+      // Uncheck semua, lalu centang hanya source ini
+      state.sources.forEach(src => src.checked = false);
+      source.checked = true;
+      renderThumbStrip();
+      updateFileLabel();
+
+      // Generate pattern dengan source ini
+      drawPattern();
+      await nextFrame();
+
+      const settings = getSettings();
+      const seed = settings.seed || (i + 1);
+      const idxJson = i + 1;
+      const idxSource = s + 1;
+      const baseName = `${source.name.replace(/\.svg$/i, '')}-${idxJson}-${seed}`;
+      els.batchStatus.textContent = `[${idxJson}/${jsonData.length}] [${idxSource}/${sourcesToProcess.length}] ${source.name} (seed ${seed})...`;
+
+      // Export
+      if (format === "png" || format === "both") {
+        const blob = await canvasToBlob(els.canvas);
+        if (blob) yield { name: `png/${baseName}.png`, input: blob, lastModified: new Date() };
+      }
+      if (format === "svg" || format === "both") {
+        const svg = buildSvgMarkup(settings, state.placements);
+        yield {
+          name: `svg/${baseName}.svg`,
+          input: new Blob([svg], { type: "image/svg+xml" }),
+          lastModified: new Date(),
+        };
+      }
+    }
+  }
+
+  // Restore backup centang
+  state.sources.forEach((src, idx) => src.checked = backupChecked[idx]);
+  renderThumbStrip();
+  updateFileLabel();
+}
+
+async function batchDownloadByJson() {
+  if (!state.batchJsonData || !state.batchJsonData.length) {
+    els.batchStatus.textContent = "Upload file JSON terlebih dahulu.";
+    return;
+  }
+
+  // Cek apakah ada sumber (semua file atau checked)
+  const mode = document.querySelector('input[name="batchMode"]:checked')?.value || 'checked';
+  const sources = mode === 'all' ? state.sources : checkedSources();
+  if (!sources.length) {
+    els.batchStatus.textContent = "Tidak ada file SVG untuk diproses.";
+    return;
+  }
+
+  const format = els.batchFormat.value;
+  const zipName = `batch-json-${Date.now()}.zip`;
+
+  let handle = null;
+  if (window.showSaveFilePicker) {
+    try {
+      handle = await window.showSaveFilePicker({
+        suggestedName: zipName,
+        types: [{ description: "ZIP archive", accept: { "application/zip": [".zip"] } }],
+      });
+    } catch (error) {
+      if (error?.name === "AbortError") {
+        els.batchStatus.textContent = "Batch dibatalkan.";
+        return;
+      }
+      handle = null;
+    }
+  }
+
+  const originalSeed = els.seed.value;
+  els.batchDownloadJsonBtn.disabled = true;
+  els.batchStatus.textContent = "Menyiapkan batch dari JSON...";
+
+  try {
+    const { downloadZip } = await import(CLIENT_ZIP_URL);
+    const response = downloadZip(batchGeneratorByJson(state.batchJsonData, format));
+
+    if (handle) {
+      const writable = await handle.createWritable();
+      await response.body.pipeTo(writable);
+      const total = state.batchJsonData.length * sources.length;
+      els.batchStatus.textContent = `Selesai. ${total} pattern dari JSON disimpan ke ${zipName}.`;
+    } else {
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      download(zipName, url);
+      window.setTimeout(() => URL.revokeObjectURL(url), 500);
+      const total = state.batchJsonData.length * sources.length;
+      els.batchStatus.textContent = `Selesai. ${total} pattern dari JSON diunduh sebagai ${zipName}.`;
+    }
+  } catch (error) {
+    els.batchStatus.textContent = `Gagal membuat batch: ${error.message}`;
+  } finally {
+    els.seed.value = originalSeed;
+    drawPattern();
+    els.batchDownloadJsonBtn.disabled = false;
+  }
+}
+
+// ========== FUNGSI EXPORT / IMPORT SETTINGS (JSON) ==========
+function exportSettings() {
+  const settings = getSettings();
+  const batchSeeds = state.batchSeeds && state.batchSeeds.length ? state.batchSeeds : [];
+  const exportData = {
+    ...settings,
+    batchSeeds: batchSeeds,
+  };
+  exportData.baseScale = Math.round(exportData.baseScale * 100);
+  exportData.scaleVariance = Math.round(exportData.scaleVariance * 100);
+  exportData.jitter = Math.round(exportData.jitter * 100);
+
+  const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  download(`pattern-settings-${Date.now()}.json`, url);
+  window.setTimeout(() => URL.revokeObjectURL(url), 500);
+}
+
+function importSettings(file) {
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
+      const data = JSON.parse(e.target.result);
+
+      if (Array.isArray(data)) {
+        state.batchJsonData = data;
+        state.batchSeeds = [];
+        els.batchStatus.textContent = `JSON batch loaded: ${data.length} entries.`;
+        console.log('Batch JSON loaded:', data);
+        return;
+      }
+
+      applySettingsFromObject(data);
+
+      if (data.batchSeeds && Array.isArray(data.batchSeeds)) {
+        state.batchSeeds = data.batchSeeds;
+      } else {
+        state.batchSeeds = [];
+      }
+      state.batchJsonData = null;
+
+      els.batchStatus.textContent = `Settings loaded: ${Object.keys(data).length} properties.`;
+      drawPattern();
+    } catch (err) {
+      alert('File JSON tidak valid: ' + err.message);
+      els.batchStatus.textContent = 'Gagal load JSON: ' + err.message;
+    }
+  };
+  reader.readAsText(file);
+}
+
+// ========== EVENT LISTENERS ==========
 
 [
   els.count,
@@ -848,15 +1109,41 @@ els.sampleBtn.addEventListener("click", useSampleSvg);
 els.shuffleBtn.addEventListener("click", shuffleSeed);
 els.downloadPngBtn.addEventListener("click", downloadPng);
 els.downloadSvgBtn.addEventListener("click", downloadSvg);
-els.batchDownloadBtn.addEventListener("click", batchDownload);
+els.batchDownloadCountBtn.addEventListener("click", batchDownloadByCount);
+els.batchDownloadJsonBtn.addEventListener("click", batchDownloadByJson);
 els.previewScale.addEventListener("input", () => updatePreviewBackground());
 els.showTile.addEventListener("input", () => updatePreviewBackground());
-
 els.repeatCount.addEventListener("input", () => {
   updateRepeatLabel();
   updatePreviewBackground();
 });
 
+// Tombol manajemen file
+if (els.checkAllBtn) {
+  els.checkAllBtn.addEventListener("click", checkAllFiles);
+}
+if (els.uncheckAllBtn) {
+  els.uncheckAllBtn.addEventListener("click", uncheckAllFiles);
+}
+if (els.resetFilesBtn) {
+  els.resetFilesBtn.addEventListener("click", resetFiles);
+}
+
+// JSON Export / Import
+if (els.exportJsonBtn) {
+  els.exportJsonBtn.addEventListener("click", exportSettings);
+}
+if (els.importJsonInput) {
+  els.importJsonInput.addEventListener("change", (e) => {
+    if (e.target.files.length) {
+      importSettings(e.target.files[0]);
+    }
+    e.target.value = '';
+  });
+}
+
+
+// ========== INISIALISASI ==========
 updateLabels();
 syncHeightToWidth();
 updateExportLabels();

@@ -1,0 +1,306 @@
+[
+  {
+    "width": 3840,
+    "height": 2160,
+    "count": 30,
+    "seed": 273845,
+    "baseScale": 20,
+    "scaleVariance": 10,
+    "rotation": 180,
+    "spacing": 63,
+    "minPoissonDistance": 63,
+    "jitter": 72,
+    "distribution": "blue-noise",
+    "randomMode": true,
+    "allowEdgeCuts": true,
+    "background": {
+      "mode": "color",
+      "color": "#ffffff"
+    },
+    "coloring": {
+      "mode": "multi",
+      "singleColor": "#0e7c66",
+      "colors": [
+        "#9a9a02",
+        "#17562c",
+        "#206e69",
+        "#89004c",
+        "#635841",
+        "#acc43f",
+        "#526900",
+        "#d8d15f",
+        "#c43f14",
+        "#2c1cea",
+        "#861472",
+        "#de1cb2"
+      ]
+    },
+    "batchSeeds": []
+  },
+  {
+    "width": 3840,
+    "height": 2160,
+    "count": 30,
+    "seed": 739264,
+    "baseScale": 20,
+    "scaleVariance": 100,
+    "rotation": 180,
+    "spacing": 63,
+    "minPoissonDistance": 63,
+    "jitter": 72,
+    "distribution": "blue-noise",
+    "randomMode": true,
+    "allowEdgeCuts": true,
+    "background": {
+      "mode": "color",
+      "color": "#ffffff"
+    },
+    "coloring": {
+      "mode": "multi",
+      "singleColor": "#0e7c66",
+      "colors": [
+        "#9a9a02",
+        "#17562c",
+        "#206e69",
+        "#89004c",
+        "#635841",
+        "#acc43f",
+        "#526900",
+        "#d8d15f",
+        "#c43f14",
+        "#2c1cea",
+        "#861472",
+        "#de1cb2"
+      ]
+    },
+    "batchSeeds": []
+  },
+  {
+    "width": 3840,
+    "height": 2160,
+    "count": 30,
+    "seed": 629473,
+    "baseScale": 40,
+    "scaleVariance": 10,
+    "rotation": 180,
+    "spacing": 63,
+    "minPoissonDistance": 63,
+    "jitter": 72,
+    "distribution": "blue-noise",
+    "randomMode": true,
+    "allowEdgeCuts": true,
+    "background": {
+      "mode": "color",
+      "color": "#ffffff"
+    },
+    "coloring": {
+      "mode": "multi",
+      "singleColor": "#0e7c66",
+      "colors": [
+        "#9a9a02",
+        "#17562c",
+        "#206e69",
+        "#89004c",
+        "#635841",
+        "#acc43f",
+        "#526900",
+        "#d8d15f",
+        "#c43f14",
+        "#2c1cea",
+        "#861472",
+        "#de1cb2"
+      ]
+    },
+    "batchSeeds": []
+  },
+  {
+    "width": 3840,
+    "height": 2160,
+    "count": 30,
+    "seed": 564738,
+    "baseScale": 40,
+    "scaleVariance": 100,
+    "rotation": 180,
+    "spacing": 63,
+    "minPoissonDistance": 63,
+    "jitter": 72,
+    "distribution": "blue-noise",
+    "randomMode": true,
+    "allowEdgeCuts": true,
+    "background": {
+      "mode": "color",
+      "color": "#ffffff"
+    },
+    "coloring": {
+      "mode": "multi",
+      "singleColor": "#0e7c66",
+      "colors": [
+        "#9a9a02",
+        "#17562c",
+        "#206e69",
+        "#89004c",
+        "#635841",
+        "#acc43f",
+        "#526900",
+        "#d8d15f",
+        "#c43f14",
+        "#2c1cea",
+        "#861472",
+        "#de1cb2"
+      ]
+    },
+    "batchSeeds": []
+  },
+  {
+    "width": 3840,
+    "height": 2160,
+    "count": 30,
+    "seed": 658291,
+    "baseScale": 60,
+    "scaleVariance": 10,
+    "rotation": 180,
+    "spacing": 63,
+    "minPoissonDistance": 63,
+    "jitter": 72,
+    "distribution": "blue-noise",
+    "randomMode": true,
+    "allowEdgeCuts": true,
+    "background": {
+      "mode": "color",
+      "color": "#ffffff"
+    },
+    "coloring": {
+      "mode": "multi",
+      "singleColor": "#0e7c66",
+      "colors": [
+        "#9a9a02",
+        "#17562c",
+        "#206e69",
+        "#89004c",
+        "#635841",
+        "#acc43f",
+        "#526900",
+        "#d8d15f",
+        "#c43f14",
+        "#2c1cea",
+        "#861472",
+        "#de1cb2"
+      ]
+    },
+    "batchSeeds": []
+  },
+  {
+    "width": 3840,
+    "height": 2160,
+    "count": 30,
+    "seed": 657483,
+    "baseScale": 60,
+    "scaleVariance": 100,
+    "rotation": 180,
+    "spacing": 63,
+    "minPoissonDistance": 63,
+    "jitter": 72,
+    "distribution": "blue-noise",
+    "randomMode": true,
+    "allowEdgeCuts": true,
+    "background": {
+      "mode": "color",
+      "color": "#ffffff"
+    },
+    "coloring": {
+      "mode": "multi",
+      "singleColor": "#0e7c66",
+      "colors": [
+        "#9a9a02",
+        "#17562c",
+        "#206e69",
+        "#89004c",
+        "#635841",
+        "#acc43f",
+        "#526900",
+        "#d8d15f",
+        "#c43f14",
+        "#2c1cea",
+        "#861472",
+        "#de1cb2"
+      ]
+    },
+    "batchSeeds": []
+  },
+  {
+    "width": 3840,
+    "height": 2160,
+    "count": 30,
+    "seed": 918273,
+    "baseScale": 80,
+    "scaleVariance": 10,
+    "rotation": 180,
+    "spacing": 63,
+    "minPoissonDistance": 63,
+    "jitter": 72,
+    "distribution": "blue-noise",
+    "randomMode": true,
+    "allowEdgeCuts": true,
+    "background": {
+      "mode": "color",
+      "color": "#ffffff"
+    },
+    "coloring": {
+      "mode": "multi",
+      "singleColor": "#0e7c66",
+      "colors": [
+        "#9a9a02",
+        "#17562c",
+        "#206e69",
+        "#89004c",
+        "#635841",
+        "#acc43f",
+        "#526900",
+        "#d8d15f",
+        "#c43f14",
+        "#2c1cea",
+        "#861472",
+        "#de1cb2"
+      ]
+    },
+    "batchSeeds": []
+  },
+  {
+    "width": 3840,
+    "height": 2160,
+    "count": 30,
+    "seed": 837465,
+    "baseScale": 80,
+    "scaleVariance": 100,
+    "rotation": 180,
+    "spacing": 63,
+    "minPoissonDistance": 63,
+    "jitter": 72,
+    "distribution": "blue-noise",
+    "randomMode": true,
+    "allowEdgeCuts": true,
+    "background": {
+      "mode": "color",
+      "color": "#ffffff"
+    },
+    "coloring": {
+      "mode": "multi",
+      "singleColor": "#0e7c66",
+      "colors": [
+        "#9a9a02",
+        "#17562c",
+        "#206e69",
+        "#89004c",
+        "#635841",
+        "#acc43f",
+        "#526900",
+        "#d8d15f",
+        "#c43f14",
+        "#2c1cea",
+        "#861472",
+        "#de1cb2"
+      ]
+    },
+    "batchSeeds": []
+  }
+]

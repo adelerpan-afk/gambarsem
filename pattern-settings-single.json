@@ -1,0 +1,202 @@
+[
+  {
+    "width": 3840,
+    "height": 2160,
+    "count": 30,
+    "seed": 916482,
+    "baseScale": 20,
+    "scaleVariance": 10,
+    "rotation": 180,
+    "spacing": 63,
+    "minPoissonDistance": 63,
+    "jitter": 72,
+    "distribution": "blue-noise",
+    "randomMode": true,
+    "allowEdgeCuts": true,
+    "background": {
+      "mode": "color",
+      "color": "#ffffff"
+    },
+    "coloring": {
+      "mode": "single",
+      "singleColor": "#0e7c66",
+      "colors": []
+    },
+    "batchSeeds": []
+  },
+  {
+    "width": 3840,
+    "height": 2160,
+    "count": 30,
+    "seed": 502817,
+    "baseScale": 20,
+    "scaleVariance": 100,
+    "rotation": 180,
+    "spacing": 63,
+    "minPoissonDistance": 63,
+    "jitter": 72,
+    "distribution": "blue-noise",
+    "randomMode": true,
+    "allowEdgeCuts": true,
+    "background": {
+      "mode": "color",
+      "color": "#ffffff"
+    },
+    "coloring": {
+      "mode": "single",
+      "singleColor": "#0e7c66",
+      "colors": []
+    },
+    "batchSeeds": []
+  },
+  {
+    "width": 3840,
+    "height": 2160,
+    "count": 30,
+    "seed": 357184,
+    "baseScale": 40,
+    "scaleVariance": 10,
+    "rotation": 180,
+    "spacing": 63,
+    "minPoissonDistance": 63,
+    "jitter": 72,
+    "distribution": "blue-noise",
+    "randomMode": true,
+    "allowEdgeCuts": true,
+    "background": {
+      "mode": "color",
+      "color": "#ffffff"
+    },
+    "coloring": {
+      "mode": "single",
+      "singleColor": "#0e7c66",
+      "colors": []
+    },
+    "batchSeeds": []
+  },
+  {
+    "width": 3840,
+    "height": 2160,
+    "count": 30,
+    "seed": 192837,
+    "baseScale": 40,
+    "scaleVariance": 100,
+    "rotation": 180,
+    "spacing": 63,
+    "minPoissonDistance": 63,
+    "jitter": 72,
+    "distribution": "blue-noise",
+    "randomMode": true,
+    "allowEdgeCuts": true,
+    "background": {
+      "mode": "color",
+      "color": "#ffffff"
+    },
+    "coloring": {
+      "mode": "single",
+      "singleColor": "#0e7c66",
+      "colors": []
+    },
+    "batchSeeds": []
+  },
+  {
+    "width": 3840,
+    "height": 2160,
+    "count": 30,
+    "seed": 374829,
+    "baseScale": 60,
+    "scaleVariance": 10,
+    "rotation": 180,
+    "spacing": 63,
+    "minPoissonDistance": 63,
+    "jitter": 72,
+    "distribution": "blue-noise",
+    "randomMode": true,
+    "allowEdgeCuts": true,
+    "background": {
+      "mode": "color",
+      "color": "#ffffff"
+    },
+    "coloring": {
+      "mode": "single",
+      "singleColor": "#0e7c66",
+      "colors": []
+    },
+    "batchSeeds": []
+  },
+  {
+    "width": 3840,
+    "height": 2160,
+    "count": 30,
+    "seed": 193847,
+    "baseScale": 60,
+    "scaleVariance": 100,
+    "rotation": 180,
+    "spacing": 63,
+    "minPoissonDistance": 63,
+    "jitter": 72,
+    "distribution": "blue-noise",
+    "randomMode": true,
+    "allowEdgeCuts": true,
+    "background": {
+      "mode": "color",
+      "color": "#ffffff"
+    },
+    "coloring": {
+      "mode": "single",
+      "singleColor": "#0e7c66",
+      "colors": []
+    },
+    "batchSeeds": []
+  },
+  {
+    "width": 3840,
+    "height": 2160,
+    "count": 30,
+    "seed": 374615,
+    "baseScale": 80,
+    "scaleVariance": 10,
+    "rotation": 180,
+    "spacing": 63,
+    "minPoissonDistance": 63,
+    "jitter": 72,
+    "distribution": "blue-noise",
+    "randomMode": true,
+    "allowEdgeCuts": true,
+    "background": {
+      "mode": "color",
+      "color": "#ffffff"
+    },
+    "coloring": {
+      "mode": "single",
+      "singleColor": "#0e7c66",
+      "colors": []
+    },
+    "batchSeeds": []
+  },
+  {
+    "width": 3840,
+    "height": 2160,
+    "count": 30,
+    "seed": 291847,
+    "baseScale": 80,
+    "scaleVariance": 100,
+    "rotation": 180,
+    "spacing": 63,
+    "minPoissonDistance": 63,
+    "jitter": 72,
+    "distribution": "blue-noise",
+    "randomMode": true,
+    "allowEdgeCuts": true,
+    "background": {
+      "mode": "color",
+      "color": "#ffffff"
+    },
+    "coloring": {
+      "mode": "single",
+      "singleColor": "#0e7c66",
+      "colors": []
+    },
+    "batchSeeds": []
+  }
+]

@@ -25,6 +25,13 @@
             <small>Objek akan dihitung otomatis ketika melewati batas tile.</small>
           </label>
 
+          <!-- Tombol manajemen file -->
+          <div class="actions" style="margin-top: 6px; gap: 6px;">
+            <button id="checkAllBtn" type="button" class="secondary" style="flex:1;">✅ Check All</button>
+            <button id="uncheckAllBtn" type="button" class="secondary" style="flex:1;">⬜ Uncheck All</button>
+            <button id="resetFilesBtn" type="button" class="danger" style="flex:1;">🗑 Reset</button>
+          </div>
+
           <div class="control-grid">
             <label>
               <span>Lebar canvas</span>
@@ -65,7 +72,6 @@
               <span>Jitter grid <output id="jitterValue">70%</output></span>
               <input id="jitter" type="range" min="0" max="100" value="70" />
             </label>
-            <!-- Slider tambahan untuk jumlah repeat -->
             <label>
               <span>Jumlah repeat <output id="repeatCountValue">2</output></span>
               <input id="repeatCount" type="range" min="1" max="5" value="2" />
@@ -172,9 +178,35 @@
                 </select>
               </label>
             </div>
-            <div class="actions single">
-              <button id="batchDownloadBtn" type="button" class="primary">Batch Download (.zip)</button>
+
+            <!-- Mode Batch -->
+            <div class="control-grid" style="margin-top: 6px;">
+              <fieldset class="batch-mode-group" style="border:none;padding:0;display:flex;gap:12px;">
+                <legend style="font-weight:bold;font-size:0.9em;">Mode Batch (JSON)</legend>
+                <label class="switch">
+                  <input type="radio" name="batchMode" value="checked" checked />
+                  <span>Checked (aktif)</span>
+                </label>
+                <label class="switch">
+                  <input type="radio" name="batchMode" value="all" />
+                  <span>All files</span>
+                </label>
+              </fieldset>
             </div>
+
+            <div class="actions" style="margin-top: 6px; gap: 6px; flex-wrap: wrap;">
+              <button id="batchDownloadCountBtn" type="button" class="primary" style="flex:1;">📦 Batch by Count</button>
+              <button id="batchDownloadJsonBtn" type="button" class="primary" style="flex:1;">📦 Batch by JSON</button>
+            </div>
+
+            <div class="actions" style="margin-top: 6px; gap: 6px; flex-wrap: wrap;">
+              <button id="exportJsonBtn" type="button" class="secondary" style="flex:1;">📥 Download Settings (JSON)</button>
+              <label class="upload-zone" style="flex:1; padding:4px 8px; background:#eee; border-radius:4px; cursor:pointer; text-align:center; margin:0;">
+                <input id="importJsonInput" type="file" accept=".json" style="display:none;" />
+                📤 Load Settings (JSON)
+              </label>
+            </div>
+
             <p id="batchStatus" class="batch-status"></p>
           </section>
 
@@ -238,7 +270,6 @@
 
           <div id="thumbStrip" class="thumb-strip" aria-label="Daftar SVG yang diupload"></div>
 
-          <!-- Layout baru: tile canvas di atas, repeat preview di bawah -->
           <div class="preview-layout">
             <div class="tile-canvas-container">
               <div id="tileFrame" class="tile-frame">
@@ -246,9 +277,7 @@
               </div>
             </div>
             <div class="repeat-preview-container">
-              <div id="repeatPreview" class="repeat-preview">
-                <!-- Konten preview berulang akan diisi oleh JavaScript -->
-              </div>
+              <div id="repeatPreview" class="repeat-preview"></div>
             </div>
           </div>
         </section>
