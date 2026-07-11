@@ -1,6 +1,7 @@
 const els = {
   file: document.querySelector("#svgFile"),
   fileName: document.querySelector("#fileName"),
+  thumbStrip: document.querySelector("#thumbStrip"),
   tileWidth: document.querySelector("#tileWidth"),
   tileHeight: document.querySelector("#tileHeight"),
   count: document.querySelector("#count"),
@@ -14,12 +15,22 @@ const els = {
   randomMode: document.querySelector("#randomMode"),
   allowEdgeCuts: document.querySelector("#allowEdgeCuts"),
   showTile: document.querySelector("#showTile"),
+  bgMode: document.querySelectorAll('input[name="bgMode"]'),
+  bgColorPicker: document.querySelector("#bgColorPicker"),
+  colorMode: document.querySelectorAll('input[name="colorMode"]'),
+  singleColorPicker: document.querySelector("#singleColorPicker"),
+  multiColorHex: document.querySelector("#multiColorHex"),
+  randomColorBtn: document.querySelector("#randomColorBtn"),
   generateBtn: document.querySelector("#generateBtn"),
   autoLayoutBtn: document.querySelector("#autoLayoutBtn"),
   sampleBtn: document.querySelector("#sampleBtn"),
   shuffleBtn: document.querySelector("#shuffleBtn"),
   downloadPngBtn: document.querySelector("#downloadPngBtn"),
   downloadSvgBtn: document.querySelector("#downloadSvgBtn"),
+  batchCount: document.querySelector("#batchCount"),
+  batchFormat: document.querySelector("#batchFormat"),
+  batchDownloadBtn: document.querySelector("#batchDownloadBtn"),
+  batchStatus: document.querySelector("#batchStatus"),
   repeatPreview: document.querySelector("#repeatPreview"),
   tileFrame: document.querySelector("#tileFrame"),
   canvas: document.querySelector("#tileCanvas"),
@@ -45,12 +56,11 @@ const ctx = els.canvas.getContext("2d");
 const CANVAS_RATIO = 16 / 9;
 const MAX_PLACEMENT_ATTEMPTS = 300;
 const MAX_SHRINK_STEPS = 6;
+const CLIENT_ZIP_URL = "https://cdn.jsdelivr.net/npm/client-zip@2.5.0/index.js";
 
 const state = {
-  sourceText: "",
-  sourceUrl: "",
-  image: null,
-  sourceAspect: 1,
+  sources: [],
+  nextSourceId: 1,
   placements: [],
   skippedCount: 0,
 };
@@ -81,10 +91,36 @@ function numberFrom(el) {
   return Number.parseFloat(el.value);
 }
 
+function escapeAttr(value) {
+  return String(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;");
+}
+
+function parseHexList(text) {
+  return (text || "")
+    .split(",")
+    .map((value) => value.trim())
+    .filter((value) => /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(value));
+}
+
+function randomHexColor() {
+  const value = Math.floor(Math.random() * 0xffffff);
+  return `#${value.toString(16).padStart(6, "0")}`;
+}
+
+function checkedSources() {
+  return state.sources.filter((source) => source.checked);
+}
+
 function getSettings() {
   const width = Math.round(numberFrom(els.tileWidth));
   const height = Math.round(width / CANVAS_RATIO);
   const distribution = document.querySelector('input[name="distribution"]:checked')?.value ?? "random";
+  const bgMode = document.querySelector('input[name="bgMode"]:checked')?.value ?? "transparent";
+  const colorMode = document.querySelector('input[name="colorMode"]:checked')?.value ?? "original";
 
   return {
     width,
@@ -100,6 +136,15 @@ function getSettings() {
     distribution,
     randomMode: els.randomMode.checked,
     allowEdgeCuts: els.allowEdgeCuts.checked,
+    background: {
+      mode: bgMode,
+      color: els.bgColorPicker.value,
+    },
+    coloring: {
+      mode: colorMode,
+      singleColor: els.singleColorPicker.value,
+      colors: parseHexList(els.multiColorHex.value),
+    },
   };
 }
 
@@ -135,6 +180,12 @@ function setDistribution(value) {
   els.randomMode.checked = value !== "grid";
 }
 
+function setRadioValue(nodeList, value) {
+  Array.from(nodeList).forEach((input) => {
+    input.checked = input.value === value;
+  });
+}
+
 function parseSvgAspect(svgText) {
   const doc = new DOMParser().parseFromString(svgText, "image/svg+xml");
   const svg = doc.querySelector("svg");
@@ -165,6 +216,29 @@ function loadImageFromText(svgText) {
   });
 }
 
+function updateFileLabel() {
+  const total = state.sources.length;
+  const active = checkedSources().length;
+  els.fileName.textContent = total ? `${active}/${total} SVG aktif` : "Pilih file SVG (bisa banyak)";
+}
+
+function renderThumbStrip() {
+  els.thumbStrip.innerHTML = "";
+  state.sources.forEach((source) => {
+    const item = document.createElement("div");
+    item.className = "thumb-item";
+    item.innerHTML = `
+      <button type="button" class="thumb-remove" data-remove="${source.id}" aria-label="Hapus ${escapeAttr(source.name)}">×</button>
+      <span class="thumb-preview"><img src="${source.url}" alt="${escapeAttr(source.name)}" /></span>
+      <label class="thumb-check">
+        <input type="checkbox" data-toggle="${source.id}" ${source.checked ? "checked" : ""} />
+        <span class="thumb-name" title="${escapeAttr(source.name)}">${escapeAttr(source.name)}</span>
+      </label>
+    `;
+    els.thumbStrip.appendChild(item);
+  });
+}
+
 function edgeAnchor(index, settings, random) {
   const side = index % 4;
   const edgeBand = Math.min(64, Math.min(settings.width, settings.height) * 0.08);
@@ -174,15 +248,15 @@ function edgeAnchor(index, settings, random) {
   return { x: random() * settings.width, y: settings.height - random() * edgeBand };
 }
 
-function dimensionsForLongSide(longSide) {
+function dimensionsForLongSide(longSide, aspect) {
   return {
-    width: state.sourceAspect >= 1 ? longSide : longSide * state.sourceAspect,
-    height: state.sourceAspect >= 1 ? longSide / state.sourceAspect : longSide,
+    width: aspect >= 1 ? longSide : longSide * aspect,
+    height: aspect >= 1 ? longSide / aspect : longSide,
   };
 }
 
-function makeCandidate(index, settings, random, longSide, point = null) {
-  const dimensions = dimensionsForLongSide(longSide);
+function makeCandidate(index, settings, random, longSide, aspect, point = null) {
+  const dimensions = dimensionsForLongSide(longSide, aspect);
   const rotation = settings.rotation === 0 ? 0 : (random() * 2 - 1) * settings.rotation;
   const base = { width: dimensions.width, height: dimensions.height, rotation };
   const edgePoint = settings.allowEdgeCuts && index < 4 ? edgeAnchor(index, settings, random) : null;
@@ -210,7 +284,19 @@ function candidatePositionForAttempt(index, attempt, settings, random, candidate
   });
 }
 
-function placeOneObject(index, settings, random, baseLongSide, placed) {
+function pickColorForItem(settings, random) {
+  if (settings.coloring.mode === "single") return settings.coloring.singleColor;
+  if (settings.coloring.mode === "multi" && settings.coloring.colors.length) {
+    return settings.coloring.colors[Math.floor(random() * settings.coloring.colors.length)];
+  }
+  return null;
+}
+
+function placeOneObject(index, settings, random, baseLongSide, placed, sources) {
+  const sourceIndex = Math.floor(random() * sources.length);
+  const source = sources[sourceIndex];
+  const aspect = Math.max(0.05, source.aspect || 1);
+  const color = pickColorForItem(settings, random);
   const variance = 1 + (random() - 0.5) * settings.scaleVariance;
   const initialLongSide = clamp(baseLongSide * variance, 8, Math.min(settings.width, settings.height));
 
@@ -218,7 +304,7 @@ function placeOneObject(index, settings, random, baseLongSide, placed) {
     const longSide = initialLongSide * 0.9 ** shrinkStep;
 
     for (let attempt = 0; attempt < MAX_PLACEMENT_ATTEMPTS; attempt += 1) {
-      const candidate = makeCandidate(index, settings, random, longSide);
+      const candidate = makeCandidate(index, settings, random, longSide, aspect);
       const point = candidatePositionForAttempt(index, attempt, settings, random, candidate, placed);
       candidate.x = point.x;
       candidate.y = point.y;
@@ -226,6 +312,8 @@ function placeOneObject(index, settings, random, baseLongSide, placed) {
       if (!PatternCollision.collidesWithExisting(candidate, placed, settings, settings.spacing)) {
         candidate.attempts = attempt + 1;
         candidate.scaleReduction = shrinkStep;
+        candidate.source = source;
+        candidate.color = color;
         return candidate;
       }
     }
@@ -244,7 +332,8 @@ function calculateAutoLayout() {
   const settings = getSettings();
   const canvasArea = settings.width * settings.height;
   const targetCoverage = 0.3;
-  const aspect = Math.max(0.05, state.sourceAspect || 1);
+  const sources = checkedSources();
+  const aspect = Math.max(0.05, sources[0]?.aspect || 1);
   const shortSide = Math.min(settings.width, settings.height);
   const canvasScale = Math.sqrt(canvasArea / (3840 * 2160));
   const baseCount = clamp(Math.round(30 * canvasScale), 14, 96);
@@ -285,11 +374,17 @@ function applyAutoLayout() {
 function buildPlacements(settings) {
   const random = mulberry32(settings.seed);
   const baseLongSide = Math.min(settings.width, settings.height) * settings.baseScale;
+  const sources = checkedSources();
   const placed = [];
   let skippedCount = 0;
 
+  if (!sources.length) {
+    state.skippedCount = 0;
+    return placed;
+  }
+
   for (let index = 0; index < settings.count; index += 1) {
-    const item = placeOneObject(index, settings, random, baseLongSide, placed);
+    const item = placeOneObject(index, settings, random, baseLongSide, placed, sources);
     if (item) placed.push(item);
     else skippedCount += 1;
   }
@@ -298,12 +393,35 @@ function buildPlacements(settings) {
   return placed;
 }
 
+function recoloredCanvas(image, width, height, color) {
+  const w = Math.max(1, Math.round(width));
+  const h = Math.max(1, Math.round(height));
+  const off = document.createElement("canvas");
+  off.width = w;
+  off.height = h;
+  const offCtx = off.getContext("2d");
+  offCtx.drawImage(image, 0, 0, w, h);
+  offCtx.globalCompositeOperation = "source-atop";
+  offCtx.fillStyle = color;
+  offCtx.fillRect(0, 0, w, h);
+  return off;
+}
+
+function renderSourceFor(item) {
+  if (!item.renderSource) {
+    item.renderSource = item.color
+      ? recoloredCanvas(item.source.image, item.width, item.height, item.color)
+      : item.source.image;
+  }
+  return item.renderSource;
+}
+
 function drawImageItem(item, dx, dy) {
   ctx.save();
   ctx.translate(item.x + dx, item.y + dy);
   ctx.rotate((item.rotation * Math.PI) / 180);
   ctx.globalAlpha = item.opacity;
-  ctx.drawImage(state.image, -item.width / 2, -item.height / 2, item.width, item.height);
+  ctx.drawImage(renderSourceFor(item), -item.width / 2, -item.height / 2, item.width, item.height);
   ctx.restore();
 }
 
@@ -338,15 +456,24 @@ function drawPattern() {
   els.canvas.width = settings.width;
   els.canvas.height = settings.height;
 
-  if (!state.image) {
-    ctx.clearRect(0, 0, settings.width, settings.height);
+  ctx.clearRect(0, 0, settings.width, settings.height);
+  if (settings.background.mode === "color") {
+    ctx.fillStyle = settings.background.color;
+    ctx.fillRect(0, 0, settings.width, settings.height);
+  }
+
+  const sources = checkedSources();
+
+  if (!sources.length) {
+    state.placements = [];
     updatePreviewBackground(settings);
     updateStatsPanel(settings);
-    els.statusText.textContent = "Upload SVG untuk mulai membuat pattern 16:9.";
+    els.statusText.textContent = state.sources.length
+      ? "Centang minimal satu SVG untuk membuat pattern."
+      : "Upload SVG untuk mulai membuat pattern 16:9.";
     return;
   }
 
-  ctx.clearRect(0, 0, settings.width, settings.height);
   state.placements = buildPlacements(settings);
   state.placements.forEach((item) => {
     PatternCollision.wrapOffsets(item, settings).forEach(({ dx, dy }) => drawImageItem(item, dx, dy));
@@ -408,85 +535,125 @@ function download(filename, href) {
 }
 
 function downloadPng() {
-  if (!state.image) return;
+  if (!state.placements.length) return;
   const settings = getSettings();
   download(`seamless-pattern-${exportFileLabel(settings)}-${els.seed.value}.png`, els.canvas.toDataURL("image/png"));
 }
 
-function imageHref() {
-  return `data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(state.sourceText)))}`;
+function svgFilterId(hex) {
+  return `recolor-${hex.replace("#", "").toLowerCase()}`;
 }
 
-function escapeAttr(value) {
-  return String(value)
-    .replaceAll("&", "&amp;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;");
-}
+function buildSvgMarkup(settings, placements) {
+  const sourceHrefs = new Map();
+  placements.forEach((item) => {
+    if (!sourceHrefs.has(item.source.id)) {
+      sourceHrefs.set(
+        item.source.id,
+        `data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(item.source.text)))}`,
+      );
+    }
+  });
 
-function downloadSvg() {
-  if (!state.image) return;
-  const settings = getSettings();
-  const href = imageHref();
-  const images = state.placements
+  const usedColors = new Map();
+  placements.forEach((item) => {
+    if (item.color && !usedColors.has(item.color)) {
+      usedColors.set(item.color, svgFilterId(item.color));
+    }
+  });
+
+  const filterDefs = Array.from(usedColors.entries())
+    .map(
+      ([hex, filterId]) =>
+        `<filter id="${filterId}" x="-20%" y="-20%" width="140%" height="140%"><feFlood flood-color="${escapeAttr(hex)}" result="flood" /><feComposite in="flood" in2="SourceGraphic" operator="in" /></filter>`,
+    )
+    .join("\n    ");
+
+  const images = placements
     .flatMap((item) =>
       PatternCollision.wrapOffsets(item, settings).map(({ dx, dy }) => {
         const x = item.x + dx;
         const y = item.y + dy;
+        const href = sourceHrefs.get(item.source.id);
+        const filterAttr = item.color ? ` filter="url(#${usedColors.get(item.color)})"` : "";
         return [
-          `<image href="${href}"`,
+          `<image href="${href}"${filterAttr}`,
           `x="${escapeAttr(-item.width / 2)}" y="${escapeAttr(-item.height / 2)}"`,
           `width="${escapeAttr(item.width)}" height="${escapeAttr(item.height)}"`,
           `transform="translate(${escapeAttr(x)} ${escapeAttr(y)}) rotate(${escapeAttr(item.rotation)})" />`,
         ].join(" ");
       }),
     )
-    .join("\n  ");
+    .join("\n    ");
 
-  const svg = [
+  const backgroundRect =
+    settings.background.mode === "color"
+      ? `<rect width="100%" height="100%" fill="${escapeAttr(settings.background.color)}" />`
+      : `<rect width="100%" height="100%" fill="transparent" />`;
+
+  return [
     `<svg xmlns="http://www.w3.org/2000/svg" width="${settings.width}" height="${settings.height}" viewBox="0 0 ${settings.width} ${settings.height}">`,
-    `  <defs><clipPath id="tileClip"><rect width="${settings.width}" height="${settings.height}" /></clipPath></defs>`,
-    `  <rect width="100%" height="100%" fill="transparent" />`,
+    `  <defs><clipPath id="tileClip"><rect width="${settings.width}" height="${settings.height}" /></clipPath>${filterDefs ? `\n    ${filterDefs}` : ""}</defs>`,
+    `  ${backgroundRect}`,
     `  <g clip-path="url(#tileClip)">`,
-    `  ${images}`,
+    `    ${images}`,
     `  </g>`,
     `</svg>`,
   ].join("\n");
+}
+
+function downloadSvg() {
+  if (!state.placements.length) return;
+  const settings = getSettings();
+  const svg = buildSvgMarkup(settings, state.placements);
   const blob = new Blob([svg], { type: "image/svg+xml" });
   const url = URL.createObjectURL(blob);
   download(`seamless-pattern-${exportFileLabel(settings)}-${els.seed.value}.svg`, url);
   window.setTimeout(() => URL.revokeObjectURL(url), 500);
 }
 
-async function handleFile(event) {
-  const [file] = event.target.files;
-  if (!file) return;
+async function handleFiles(event) {
+  const files = Array.from(event.target.files || []);
+  if (!files.length) return;
 
-  try {
-    const svgText = await file.text();
-    const loaded = await loadImageFromText(svgText);
-    if (state.sourceUrl) URL.revokeObjectURL(state.sourceUrl);
-    state.sourceText = svgText;
-    state.sourceUrl = loaded.url;
-    state.image = loaded.image;
-    state.sourceAspect = parseSvgAspect(svgText);
-    els.fileName.textContent = file.name;
-    drawPattern();
-  } catch (error) {
-    els.statusText.textContent = error.message;
+  for (const file of files) {
+    try {
+      const svgText = await file.text();
+      const loaded = await loadImageFromText(svgText);
+      state.sources.push({
+        id: state.nextSourceId++,
+        name: file.name,
+        text: svgText,
+        url: loaded.url,
+        image: loaded.image,
+        aspect: parseSvgAspect(svgText),
+        checked: true,
+      });
+    } catch (error) {
+      els.statusText.textContent = error.message;
+    }
   }
+
+  event.target.value = "";
+  renderThumbStrip();
+  updateFileLabel();
+  drawPattern();
 }
 
 async function useSampleSvg() {
   try {
     const loaded = await loadImageFromText(sampleSvg);
-    if (state.sourceUrl) URL.revokeObjectURL(state.sourceUrl);
-    state.sourceText = sampleSvg;
-    state.sourceUrl = loaded.url;
-    state.image = loaded.image;
-    state.sourceAspect = parseSvgAspect(sampleSvg);
-    els.fileName.textContent = "contoh-shape.svg";
+    state.sources.push({
+      id: state.nextSourceId++,
+      name: "contoh-shape.svg",
+      text: sampleSvg,
+      url: loaded.url,
+      image: loaded.image,
+      aspect: parseSvgAspect(sampleSvg),
+      checked: true,
+    });
+    renderThumbStrip();
+    updateFileLabel();
     drawPattern();
   } catch (error) {
     els.statusText.textContent = error.message;
@@ -506,6 +673,95 @@ function syncHeightToWidth() {
 function syncWidthToHeight() {
   const height = Math.round(numberFrom(els.tileHeight));
   els.tileWidth.value = Math.round(height * CANVAS_RATIO);
+}
+
+function canvasToBlob(canvas) {
+  return new Promise((resolve) => canvas.toBlob((blob) => resolve(blob), "image/png"));
+}
+
+function nextFrame() {
+  return new Promise((resolve) => requestAnimationFrame(() => resolve()));
+}
+
+async function* batchFileGenerator(count, format) {
+  for (let i = 0; i < count; i += 1) {
+    if (i > 0) els.seed.value = Math.floor(Math.random() * 999999) + 1;
+    drawPattern();
+    await nextFrame();
+
+    const settings = getSettings();
+    const seedLabel = els.seed.value;
+    els.batchStatus.textContent = `Membuat gambar ${i + 1}/${count} (seed ${seedLabel})...`;
+
+    if (format === "png" || format === "both") {
+      const blob = await canvasToBlob(els.canvas);
+      if (blob) yield { name: `png/pattern-${seedLabel}.png`, input: blob, lastModified: new Date() };
+    }
+    if (format === "svg" || format === "both") {
+      const svg = buildSvgMarkup(settings, state.placements);
+      yield {
+        name: `svg/pattern-${seedLabel}.svg`,
+        input: new Blob([svg], { type: "image/svg+xml" }),
+        lastModified: new Date(),
+      };
+    }
+  }
+}
+
+async function batchDownload() {
+  if (!checkedSources().length) {
+    els.batchStatus.textContent = "Centang minimal satu SVG dulu.";
+    return;
+  }
+
+  const count = clamp(Math.round(numberFrom(els.batchCount)) || 1, 1, 500);
+  const format = els.batchFormat.value;
+  const zipName = `batch-pattern-${Date.now()}.zip`;
+
+  // Minta lokasi simpan lebih dulu (masih dalam konteks klik user) supaya
+  // showSaveFilePicker tidak ditolak browser, lalu baru mulai proses generate.
+  let handle = null;
+  if (window.showSaveFilePicker) {
+    try {
+      handle = await window.showSaveFilePicker({
+        suggestedName: zipName,
+        types: [{ description: "ZIP archive", accept: { "application/zip": [".zip"] } }],
+      });
+    } catch (error) {
+      if (error?.name === "AbortError") {
+        els.batchStatus.textContent = "Batch dibatalkan.";
+        return;
+      }
+      handle = null;
+    }
+  }
+
+  const originalSeed = els.seed.value;
+  els.batchDownloadBtn.disabled = true;
+  els.batchStatus.textContent = "Menyiapkan batch...";
+
+  try {
+    const { downloadZip } = await import(CLIENT_ZIP_URL);
+    const response = downloadZip(batchFileGenerator(count, format));
+
+    if (handle) {
+      const writable = await handle.createWritable();
+      await response.body.pipeTo(writable);
+      els.batchStatus.textContent = `Selesai. ${count} pattern (seed acak) disimpan ke ${zipName}.`;
+    } else {
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      download(zipName, url);
+      window.setTimeout(() => URL.revokeObjectURL(url), 500);
+      els.batchStatus.textContent = `Selesai. ${count} pattern (seed acak) diunduh sebagai ${zipName}.`;
+    }
+  } catch (error) {
+    els.batchStatus.textContent = `Gagal membuat batch: ${error.message}`;
+  } finally {
+    els.seed.value = originalSeed;
+    drawPattern();
+    els.batchDownloadBtn.disabled = false;
+  }
 }
 
 [
@@ -534,6 +790,18 @@ els.randomMode.addEventListener("input", () => {
   setDistribution(els.randomMode.checked ? "random" : "grid");
   drawPattern();
 });
+els.bgMode.forEach((input) => input.addEventListener("input", drawPattern));
+els.bgColorPicker.addEventListener("input", drawPattern);
+els.colorMode.forEach((input) => input.addEventListener("input", drawPattern));
+els.singleColorPicker.addEventListener("input", drawPattern);
+els.multiColorHex.addEventListener("input", drawPattern);
+els.randomColorBtn.addEventListener("click", () => {
+  const total = clamp(Math.round(numberFrom(els.count)) || 6, 3, 12);
+  const colors = Array.from({ length: total }, randomHexColor);
+  els.multiColorHex.value = colors.join(", ");
+  setRadioValue(els.colorMode, "multi");
+  drawPattern();
+});
 els.tileWidth.addEventListener("input", () => {
   syncHeightToWidth();
   updateExportLabels();
@@ -544,13 +812,33 @@ els.tileHeight.addEventListener("input", () => {
   updateExportLabels();
   drawPattern();
 });
-els.file.addEventListener("change", handleFile);
+els.file.addEventListener("change", handleFiles);
+els.thumbStrip.addEventListener("change", (event) => {
+  const id = Number(event.target.dataset.toggle);
+  if (!id) return;
+  const source = state.sources.find((item) => item.id === id);
+  if (source) source.checked = event.target.checked;
+  updateFileLabel();
+  drawPattern();
+});
+els.thumbStrip.addEventListener("click", (event) => {
+  const id = Number(event.target.dataset.remove);
+  if (!id) return;
+  const index = state.sources.findIndex((item) => item.id === id);
+  if (index === -1) return;
+  URL.revokeObjectURL(state.sources[index].url);
+  state.sources.splice(index, 1);
+  renderThumbStrip();
+  updateFileLabel();
+  drawPattern();
+});
 els.generateBtn.addEventListener("click", drawPattern);
 els.autoLayoutBtn.addEventListener("click", applyAutoLayout);
 els.sampleBtn.addEventListener("click", useSampleSvg);
 els.shuffleBtn.addEventListener("click", shuffleSeed);
 els.downloadPngBtn.addEventListener("click", downloadPng);
 els.downloadSvgBtn.addEventListener("click", downloadSvg);
+els.batchDownloadBtn.addEventListener("click", batchDownload);
 els.previewScale.addEventListener("input", () => updatePreviewBackground());
 els.showTile.addEventListener("input", () => updatePreviewBackground());
 
@@ -558,4 +846,5 @@ updateLabels();
 syncHeightToWidth();
 updateExportLabels();
 setDistribution("random");
+updateFileLabel();
 drawPattern();
