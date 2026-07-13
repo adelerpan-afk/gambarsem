@@ -1,6 +1,6 @@
 // ============================================================
 // app.js – Seamless Pattern Generator
-// (Dengan pewarnaan per path untuk mode multi)
+// (Dengan pewarnaan per path untuk mode multi + fix file picker)
 // ============================================================
 
 const els = {
@@ -847,18 +847,22 @@ async function batchDownloadByCount() {
   const zipName = `batch-count-${Date.now()}.zip`;
 
   let handle = null;
+  let useFilePicker = false;
   if (window.showSaveFilePicker) {
     try {
       handle = await window.showSaveFilePicker({
         suggestedName: zipName,
         types: [{ description: "ZIP archive", accept: { "application/zip": [".zip"] } }],
       });
+      useFilePicker = true;
     } catch (error) {
       if (error?.name === "AbortError") {
         els.batchStatus.textContent = "Batch dibatalkan.";
         return;
       }
+      console.warn("File picker failed, falling back to download:", error);
       handle = null;
+      useFilePicker = false;
     }
   }
 
@@ -870,10 +874,19 @@ async function batchDownloadByCount() {
     const { downloadZip } = await import(CLIENT_ZIP_URL);
     const response = downloadZip(batchGeneratorByCount(count, format));
 
-    if (handle) {
-      const writable = await handle.createWritable();
-      await response.body.pipeTo(writable);
-      els.batchStatus.textContent = `Selesai. ${count} pattern (seed dari JSON atau acak) disimpan ke ${zipName}.`;
+    if (handle && useFilePicker) {
+      try {
+        const writable = await handle.createWritable();
+        await response.body.pipeTo(writable);
+        els.batchStatus.textContent = `Selesai. ${count} pattern (seed dari JSON atau acak) disimpan ke ${zipName}.`;
+      } catch (writeError) {
+        console.warn("Failed to write via file picker, falling back to download:", writeError);
+        const blob = await response.blob();
+        const url = URL.createObjectURL(blob);
+        download(zipName, url);
+        window.setTimeout(() => URL.revokeObjectURL(url), 500);
+        els.batchStatus.textContent = `Selesai (fallback). ${count} pattern diunduh sebagai ${zipName}.`;
+      }
     } else {
       const blob = await response.blob();
       const url = URL.createObjectURL(blob);
@@ -1032,18 +1045,22 @@ async function batchDownloadByJson() {
   const zipName = `batch-json-${Date.now()}.zip`;
 
   let handle = null;
+  let useFilePicker = false;
   if (window.showSaveFilePicker) {
     try {
       handle = await window.showSaveFilePicker({
         suggestedName: zipName,
         types: [{ description: "ZIP archive", accept: { "application/zip": [".zip"] } }],
       });
+      useFilePicker = true;
     } catch (error) {
       if (error?.name === "AbortError") {
         els.batchStatus.textContent = "Batch dibatalkan.";
         return;
       }
+      console.warn("File picker failed, falling back to download:", error);
       handle = null;
+      useFilePicker = false;
     }
   }
 
@@ -1055,11 +1072,21 @@ async function batchDownloadByJson() {
     const { downloadZip } = await import(CLIENT_ZIP_URL);
     const response = downloadZip(batchGeneratorByJson(state.batchJsonData, format));
 
-    if (handle) {
-      const writable = await handle.createWritable();
-      await response.body.pipeTo(writable);
-      const total = state.batchJsonData.length * sources.length;
-      els.batchStatus.textContent = `Selesai. ${total} pattern dari JSON disimpan ke ${zipName}.`;
+    if (handle && useFilePicker) {
+      try {
+        const writable = await handle.createWritable();
+        await response.body.pipeTo(writable);
+        const total = state.batchJsonData.length * sources.length;
+        els.batchStatus.textContent = `Selesai. ${total} pattern dari JSON disimpan ke ${zipName}.`;
+      } catch (writeError) {
+        console.warn("Failed to write via file picker, falling back to download:", writeError);
+        const blob = await response.blob();
+        const url = URL.createObjectURL(blob);
+        download(zipName, url);
+        window.setTimeout(() => URL.revokeObjectURL(url), 500);
+        const total = state.batchJsonData.length * sources.length;
+        els.batchStatus.textContent = `Selesai (fallback). ${total} pattern dari JSON diunduh sebagai ${zipName}.`;
+      }
     } else {
       const blob = await response.blob();
       const url = URL.createObjectURL(blob);
