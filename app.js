@@ -1,3 +1,8 @@
+// ============================================================
+// app.js – Seamless Pattern Generator
+// (Dengan pewarnaan per path untuk mode multi)
+// ============================================================
+
 const els = {
   file: document.querySelector("#svgFile"),
   fileName: document.querySelector("#fileName"),
@@ -55,7 +60,6 @@ const els = {
   repeatCountValue: document.querySelector("#repeatCountValue"),
   exportJsonBtn: document.querySelector("#exportJsonBtn"),
   importJsonInput: document.querySelector("#importJsonInput"),
-  // tombol baru
   checkAllBtn: document.querySelector("#checkAllBtn"),
   uncheckAllBtn: document.querySelector("#uncheckAllBtn"),
   resetFilesBtn: document.querySelector("#resetFilesBtn"),
@@ -84,6 +88,7 @@ const sampleSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 90">
   <circle cx="75" cy="50" r="7" fill="#d65f68"/>
 </svg>`;
 
+// ---------- UTILITY ----------
 function mulberry32(seed) {
   let value = seed >>> 0;
   return function random() {
@@ -127,6 +132,7 @@ function checkedSources() {
   return state.sources.filter((source) => source.checked);
 }
 
+// ---------- SETTINGS ----------
 function getSettings() {
   const width = Math.round(numberFrom(els.tileWidth));
   const height = Math.round(width / CANVAS_RATIO);
@@ -160,6 +166,7 @@ function getSettings() {
   };
 }
 
+// ---------- UI UPDATE ----------
 function updateLabels() {
   els.baseScaleValue.value = `${els.baseScale.value}%`;
   els.scaleVarianceValue.value = `${els.scaleVariance.value}%`;
@@ -255,19 +262,19 @@ function renderThumbStrip() {
   });
 }
 
-// ========== MANAJEMEN FILE ==========
+// ---------- MANAJEMEN FILE ----------
 function checkAllFiles() {
   state.sources.forEach(s => s.checked = true);
   renderThumbStrip();
   updateFileLabel();
-  drawPattern();
+  drawPattern().catch(console.error);
 }
 
 function uncheckAllFiles() {
   state.sources.forEach(s => s.checked = false);
   renderThumbStrip();
   updateFileLabel();
-  drawPattern();
+  drawPattern().catch(console.error);
 }
 
 function resetFiles() {
@@ -276,7 +283,7 @@ function resetFiles() {
   state.nextSourceId = 1;
   renderThumbStrip();
   updateFileLabel();
-  drawPattern();
+  drawPattern().catch(console.error);
 }
 
 function getSourceName() {
@@ -287,7 +294,28 @@ function getSourceName() {
   return names[0] + ` (+${names.length - 1} more)`;
 }
 
-// ========== COLLISION & PLACEMENT ==========
+// ---------- MODIFIKASI SVG UNTUK MULTI COLOR PER PATH ----------
+function modifySvgWithMultiColors(svgText, colors, seed) {
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(svgText, "image/svg+xml");
+  const svg = doc.querySelector("svg");
+  if (!svg) return svgText;
+
+  // Semua elemen yang bisa diisi
+  const elements = svg.querySelectorAll(
+    "path, circle, rect, ellipse, polygon, polyline, line, text"
+  );
+  const random = mulberry32(seed);
+  elements.forEach((el) => {
+    const color = colors[Math.floor(random() * colors.length)];
+    el.setAttribute("fill", color);
+  });
+
+  const serializer = new XMLSerializer();
+  return serializer.serializeToString(doc);
+}
+
+// ---------- COLLISION & PLACEMENT ----------
 function edgeAnchor(index, settings, random) {
   const side = index % 4;
   const edgeBand = Math.min(64, Math.min(settings.width, settings.height) * 0.08);
@@ -312,6 +340,7 @@ function makeCandidate(index, settings, random, longSide, aspect, point = null) 
   const position = edgePoint ?? point ?? PatternDistribution.randomPosition(settings, random, base);
 
   return {
+    id: index, // untuk identifikasi unik
     x: position.x,
     y: position.y,
     width: dimensions.width,
@@ -417,7 +446,7 @@ function applyAutoLayout() {
   els.jitter.value = layout.jitter;
   setDistribution("blue-noise");
   updateLabels();
-  drawPattern();
+  drawPattern().catch(console.error);
 }
 
 function buildPlacements(settings) {
@@ -442,35 +471,56 @@ function buildPlacements(settings) {
   return placed;
 }
 
-function recoloredCanvas(image, width, height, color) {
-  const w = Math.max(1, Math.round(width));
-  const h = Math.max(1, Math.round(height));
-  const off = document.createElement("canvas");
-  off.width = w;
-  off.height = h;
-  const offCtx = off.getContext("2d");
-  offCtx.drawImage(image, 0, 0, w, h);
-  offCtx.globalCompositeOperation = "source-atop";
-  offCtx.fillStyle = color;
-  offCtx.fillRect(0, 0, w, h);
-  return off;
-}
+// ---------- RENDER SUMBER GAMBAR (dengan pewarnaan) ----------
+async function renderSourceFor(item) {
+  if (item.renderSource) return item.renderSource;
+  const settings = getSettings();
 
-function renderSourceFor(item) {
-  if (!item.renderSource) {
-    item.renderSource = item.color
-      ? recoloredCanvas(item.source.image, item.width, item.height, item.color)
-      : item.source.image;
+  if (settings.coloring.mode === "original") {
+    item.renderSource = item.source.image;
+  } else if (settings.coloring.mode === "single") {
+    // Satu warna untuk seluruh objek
+    const color = item.color || settings.coloring.singleColor;
+    const off = document.createElement("canvas");
+    off.width = Math.max(1, Math.round(item.width));
+    off.height = Math.max(1, Math.round(item.height));
+    const offCtx = off.getContext("2d");
+    offCtx.drawImage(item.source.image, 0, 0, off.width, off.height);
+    offCtx.globalCompositeOperation = "source-atop";
+    offCtx.fillStyle = color;
+    offCtx.fillRect(0, 0, off.width, off.height);
+    item.renderSource = off;
+  } else if (settings.coloring.mode === "multi") {
+    const colors = settings.coloring.colors;
+    if (!colors.length) {
+      // Fallback ke original
+      item.renderSource = item.source.image;
+    } else {
+      const seed = settings.seed + (item.id || 0);
+      const modifiedSvg = modifySvgWithMultiColors(item.source.text, colors, seed);
+      const blob = new Blob([modifiedSvg], { type: "image/svg+xml" });
+      const url = URL.createObjectURL(blob);
+      const image = new Image();
+      await new Promise((resolve, reject) => {
+        image.onload = resolve;
+        image.onerror = () => reject(new Error("Gagal memuat SVG yang dimodifikasi"));
+        image.src = url;
+      });
+      URL.revokeObjectURL(url);
+      item.renderSource = image;
+    }
   }
   return item.renderSource;
 }
 
 function drawImageItem(item, dx, dy) {
+  const source = item.renderSource;
+  if (!source) return; // safety
   ctx.save();
   ctx.translate(item.x + dx, item.y + dy);
   ctx.rotate((item.rotation * Math.PI) / 180);
   ctx.globalAlpha = item.opacity;
-  ctx.drawImage(renderSourceFor(item), -item.width / 2, -item.height / 2, item.width, item.height);
+  ctx.drawImage(source, -item.width / 2, -item.height / 2, item.width, item.height);
   ctx.restore();
 }
 
@@ -500,42 +550,56 @@ function updateStatsPanel(settings) {
   if (coverage > 60) els.coverageBar.classList.add("coverage-danger");
 }
 
-function drawPattern() {
-  const settings = getSettings();
-  els.canvas.width = settings.width;
-  els.canvas.height = settings.height;
+// ---------- DRAW PATTERN (ASYNC) ----------
+let isDrawing = false;
 
-  ctx.clearRect(0, 0, settings.width, settings.height);
-  if (settings.background.mode === "color") {
-    ctx.fillStyle = settings.background.color;
-    ctx.fillRect(0, 0, settings.width, settings.height);
-  }
+async function drawPattern() {
+  if (isDrawing) return;
+  isDrawing = true;
+  try {
+    const settings = getSettings();
+    els.canvas.width = settings.width;
+    els.canvas.height = settings.height;
 
-  const sources = checkedSources();
+    ctx.clearRect(0, 0, settings.width, settings.height);
+    if (settings.background.mode === "color") {
+      ctx.fillStyle = settings.background.color;
+      ctx.fillRect(0, 0, settings.width, settings.height);
+    }
 
-  if (!sources.length) {
-    state.placements = [];
+    const sources = checkedSources();
+    if (!sources.length) {
+      state.placements = [];
+      updatePreviewBackground(settings);
+      updateStatsPanel(settings);
+      els.statusText.textContent = state.sources.length
+        ? "Centang minimal satu SVG untuk membuat pattern."
+        : "Upload SVG untuk mulai membuat pattern 16:9.";
+      return;
+    }
+
+    // Buat placements dan render semua sumber gambar
+    state.placements = buildPlacements(settings);
+    await Promise.all(state.placements.map((item) => renderSourceFor(item)));
+
+    // Gambar semua objek
+    state.placements.forEach((item) => {
+      PatternCollision.wrapOffsets(item, settings).forEach(({ dx, dy }) =>
+        drawImageItem(item, dx, dy)
+      );
+    });
+
     updatePreviewBackground(settings);
     updateStatsPanel(settings);
-    els.statusText.textContent = state.sources.length
-      ? "Centang minimal satu SVG untuk membuat pattern."
-      : "Upload SVG untuk mulai membuat pattern 16:9.";
-    return;
+
+    const duplicateCount = state.placements.reduce((sum, item) => {
+      return sum + PatternCollision.wrapOffsets(item, settings).length - 1;
+    }, 0);
+    const skipped = state.skippedCount ? `, ${state.skippedCount} objek dilewati karena collision` : "";
+    els.statusText.textContent = `${state.placements.length} objek, ${duplicateCount} salinan tepi${skipped}, canvas ${settings.width} x ${settings.height}px, rasio 16:9.`;
+  } finally {
+    isDrawing = false;
   }
-
-  state.placements = buildPlacements(settings);
-  state.placements.forEach((item) => {
-    PatternCollision.wrapOffsets(item, settings).forEach(({ dx, dy }) => drawImageItem(item, dx, dy));
-  });
-
-  updatePreviewBackground(settings);
-  updateStatsPanel(settings);
-
-  const duplicateCount = state.placements.reduce((sum, item) => {
-    return sum + PatternCollision.wrapOffsets(item, settings).length - 1;
-  }, 0);
-  const skipped = state.skippedCount ? `, ${state.skippedCount} objek dilewati karena collision` : "";
-  els.statusText.textContent = `${state.placements.length} objek, ${duplicateCount} salinan tepi${skipped}, canvas ${settings.width} x ${settings.height}px, rasio 16:9.`;
 }
 
 function updatePreviewBackground(settings = getSettings()) {
@@ -577,6 +641,7 @@ window.PatternAppDebug = {
   validateCurrentCollisions,
 };
 
+// ---------- DOWNLOAD ----------
 function download(filename, href) {
   const link = document.createElement("a");
   link.download = filename;
@@ -664,6 +729,7 @@ function downloadSvg() {
   window.setTimeout(() => URL.revokeObjectURL(url), 500);
 }
 
+// ---------- HANDLE FILE ----------
 async function handleFiles(event) {
   const files = Array.from(event.target.files || []);
   if (!files.length) return;
@@ -689,7 +755,7 @@ async function handleFiles(event) {
   event.target.value = "";
   renderThumbStrip();
   updateFileLabel();
-  drawPattern();
+  await drawPattern();
 }
 
 async function useSampleSvg() {
@@ -706,7 +772,7 @@ async function useSampleSvg() {
     });
     renderThumbStrip();
     updateFileLabel();
-    drawPattern();
+    await drawPattern();
   } catch (error) {
     els.statusText.textContent = error.message;
   }
@@ -714,7 +780,7 @@ async function useSampleSvg() {
 
 function shuffleSeed() {
   els.seed.value = Math.floor(Math.random() * 999999) + 1;
-  drawPattern();
+  drawPattern().catch(console.error);
 }
 
 function syncHeightToWidth() {
@@ -735,7 +801,7 @@ function nextFrame() {
   return new Promise((resolve) => requestAnimationFrame(() => resolve()));
 }
 
-// ========== BATCH DOWNLOAD BERDASARKAN JUMLAH (COUNT) ==========
+// ---------- BATCH DOWNLOAD BY COUNT ----------
 async function* batchGeneratorByCount(count, format) {
   const seeds = state.batchSeeds && state.batchSeeds.length
     ? state.batchSeeds.slice(0, count)
@@ -746,7 +812,7 @@ async function* batchGeneratorByCount(count, format) {
   for (let i = 0; i < seeds.length; i++) {
     const seed = seeds[i];
     els.seed.value = seed;
-    drawPattern();
+    await drawPattern();
     await nextFrame();
 
     const settings = getSettings();
@@ -819,12 +885,12 @@ async function batchDownloadByCount() {
     els.batchStatus.textContent = `Gagal membuat batch: ${error.message}`;
   } finally {
     els.seed.value = originalSeed;
-    drawPattern();
+    await drawPattern();
     els.batchDownloadCountBtn.disabled = false;
   }
 }
 
-// ========== BATCH DOWNLOAD BERDASARKAN JSON ==========
+// ---------- BATCH DOWNLOAD BY JSON ----------
 function applySettingsFromObject(data) {
   if (data.tileWidth) els.tileWidth.value = data.tileWidth;
   if (data.tileHeight) els.tileHeight.value = data.tileHeight;
@@ -861,16 +927,13 @@ async function* batchGeneratorByJson(jsonData, format) {
   let sourcesToProcess;
 
   if (mode === 'all') {
-    sourcesToProcess = state.sources.slice(); // semua file
+    sourcesToProcess = state.sources.slice();
   } else if (mode === 'original') {
-    // Untuk original, kita gunakan semua yang dicentang, tapi tidak perlu looping per source
-    sourcesToProcess = null; // tidak dipakai
+    sourcesToProcess = null;
   } else {
-    // checked
     sourcesToProcess = checkedSources();
   }
 
-  // Untuk mode original, kita hanya perlu memastikan ada source yang dicentang
   if (mode === 'original') {
     if (!checkedSources().length) {
       els.batchStatus.textContent = "Tidak ada file SVG yang dicentang untuk mode Original.";
@@ -883,7 +946,6 @@ async function* batchGeneratorByJson(jsonData, format) {
     }
   }
 
-  // Backup status centang asli (untuk mode checked/all)
   const backupChecked = state.sources.map(src => src.checked);
 
   for (let i = 0; i < jsonData.length; i++) {
@@ -893,16 +955,12 @@ async function* batchGeneratorByJson(jsonData, format) {
     const seed = settings.seed || (i + 1);
 
     if (mode === 'original') {
-      // Mode original: gunakan semua file yang dicentang secara bersamaan
-      // Pastikan semua yang dicentang tetap dicentang (tidak diubah)
-      // Generate pattern
-      drawPattern();
+      await drawPattern();
       await nextFrame();
 
       const baseName = `combined-${i+1}-${seed}`;
       els.batchStatus.textContent = `[${i+1}/${jsonData.length}] Original combined (seed ${seed})...`;
 
-      // Export
       if (format === "png" || format === "both") {
         const blob = await canvasToBlob(els.canvas);
         if (blob) yield { name: `png/${baseName}.png`, input: blob, lastModified: new Date() };
@@ -916,17 +974,15 @@ async function* batchGeneratorByJson(jsonData, format) {
         };
       }
     } else {
-      // Mode checked atau all: loop per source
       const sources = mode === 'all' ? state.sources : checkedSources();
       for (let s = 0; s < sources.length; s++) {
         const source = sources[s];
-        // Uncheck semua, lalu centang hanya source ini
         state.sources.forEach(src => src.checked = false);
         source.checked = true;
         renderThumbStrip();
         updateFileLabel();
 
-        drawPattern();
+        await drawPattern();
         await nextFrame();
 
         const settingsLocal = getSettings();
@@ -952,13 +1008,11 @@ async function* batchGeneratorByJson(jsonData, format) {
     }
   }
 
-  // Restore backup centang (untuk mode checked/all)
   if (mode !== 'original') {
     state.sources.forEach((src, idx) => src.checked = backupChecked[idx]);
     renderThumbStrip();
     updateFileLabel();
   }
-  // Untuk mode original, centang tidak berubah, jadi tidak perlu restore
 }
 
 async function batchDownloadByJson() {
@@ -967,7 +1021,6 @@ async function batchDownloadByJson() {
     return;
   }
 
-  // Cek apakah ada sumber (semua file atau checked)
   const mode = document.querySelector('input[name="batchMode"]:checked')?.value || 'checked';
   const sources = mode === 'all' ? state.sources : checkedSources();
   if (!sources.length) {
@@ -1019,12 +1072,12 @@ async function batchDownloadByJson() {
     els.batchStatus.textContent = `Gagal membuat batch: ${error.message}`;
   } finally {
     els.seed.value = originalSeed;
-    drawPattern();
+    await drawPattern();
     els.batchDownloadJsonBtn.disabled = false;
   }
 }
 
-// ========== FUNGSI EXPORT / IMPORT SETTINGS (JSON) ==========
+// ---------- EXPORT / IMPORT SETTINGS ----------
 function exportSettings() {
   const settings = getSettings();
   const batchSeeds = state.batchSeeds && state.batchSeeds.length ? state.batchSeeds : [];
@@ -1066,7 +1119,7 @@ function importSettings(file) {
       state.batchJsonData = null;
 
       els.batchStatus.textContent = `Settings loaded: ${Object.keys(data).length} properties.`;
-      drawPattern();
+      drawPattern().catch(console.error);
     } catch (err) {
       alert('File JSON tidak valid: ' + err.message);
       els.batchStatus.textContent = 'Gagal load JSON: ' + err.message;
@@ -1075,8 +1128,7 @@ function importSettings(file) {
   reader.readAsText(file);
 }
 
-// ========== EVENT LISTENERS ==========
-
+// ---------- EVENT LISTENERS ----------
 [
   els.count,
   els.seed,
@@ -1089,41 +1141,56 @@ function importSettings(file) {
 ].forEach((el) => {
   el.addEventListener("input", () => {
     updateLabels();
-    drawPattern();
+    drawPattern().catch(console.error);
   });
 });
 
 els.distribution.forEach((input) => {
   input.addEventListener("input", () => {
     els.randomMode.checked = input.value !== "grid";
-    drawPattern();
+    drawPattern().catch(console.error);
   });
 });
 els.randomMode.addEventListener("input", () => {
   setDistribution(els.randomMode.checked ? "random" : "grid");
-  drawPattern();
+  drawPattern().catch(console.error);
 });
-els.bgMode.forEach((input) => input.addEventListener("input", drawPattern));
-els.bgColorPicker.addEventListener("input", drawPattern);
-els.colorMode.forEach((input) => input.addEventListener("input", drawPattern));
-els.singleColorPicker.addEventListener("input", drawPattern);
-els.multiColorHex.addEventListener("input", drawPattern);
+
+// Saat mode warna berubah, hapus cache renderSource
+els.colorMode.forEach((input) => {
+  input.addEventListener("input", () => {
+    state.placements.forEach(item => delete item.renderSource);
+    drawPattern().catch(console.error);
+  });
+});
+els.multiColorHex.addEventListener("input", () => {
+  state.placements.forEach(item => delete item.renderSource);
+  drawPattern().catch(console.error);
+});
+els.singleColorPicker.addEventListener("input", () => {
+  state.placements.forEach(item => delete item.renderSource);
+  drawPattern().catch(console.error);
+});
+
+els.bgMode.forEach((input) => input.addEventListener("input", () => drawPattern().catch(console.error)));
+els.bgColorPicker.addEventListener("input", () => drawPattern().catch(console.error));
 els.randomColorBtn.addEventListener("click", () => {
   const total = clamp(Math.round(numberFrom(els.count)) || 6, 3, 12);
   const colors = Array.from({ length: total }, randomHexColor);
   els.multiColorHex.value = colors.join(", ");
   setRadioValue(els.colorMode, "multi");
-  drawPattern();
+  state.placements.forEach(item => delete item.renderSource);
+  drawPattern().catch(console.error);
 });
 els.tileWidth.addEventListener("input", () => {
   syncHeightToWidth();
   updateExportLabels();
-  drawPattern();
+  drawPattern().catch(console.error);
 });
 els.tileHeight.addEventListener("input", () => {
   syncWidthToHeight();
   updateExportLabels();
-  drawPattern();
+  drawPattern().catch(console.error);
 });
 els.file.addEventListener("change", handleFiles);
 els.thumbStrip.addEventListener("change", (event) => {
@@ -1132,7 +1199,7 @@ els.thumbStrip.addEventListener("change", (event) => {
   const source = state.sources.find((item) => item.id === id);
   if (source) source.checked = event.target.checked;
   updateFileLabel();
-  drawPattern();
+  drawPattern().catch(console.error);
 });
 els.thumbStrip.addEventListener("click", (event) => {
   const id = Number(event.target.dataset.remove);
@@ -1143,9 +1210,9 @@ els.thumbStrip.addEventListener("click", (event) => {
   state.sources.splice(index, 1);
   renderThumbStrip();
   updateFileLabel();
-  drawPattern();
+  drawPattern().catch(console.error);
 });
-els.generateBtn.addEventListener("click", drawPattern);
+els.generateBtn.addEventListener("click", () => drawPattern().catch(console.error));
 els.autoLayoutBtn.addEventListener("click", applyAutoLayout);
 els.sampleBtn.addEventListener("click", useSampleSvg);
 els.shuffleBtn.addEventListener("click", shuffleSeed);
@@ -1160,7 +1227,6 @@ els.repeatCount.addEventListener("input", () => {
   updatePreviewBackground();
 });
 
-// Tombol manajemen file
 if (els.checkAllBtn) {
   els.checkAllBtn.addEventListener("click", checkAllFiles);
 }
@@ -1171,7 +1237,6 @@ if (els.resetFilesBtn) {
   els.resetFilesBtn.addEventListener("click", resetFiles);
 }
 
-// JSON Export / Import
 if (els.exportJsonBtn) {
   els.exportJsonBtn.addEventListener("click", exportSettings);
 }
@@ -1184,12 +1249,11 @@ if (els.importJsonInput) {
   });
 }
 
-
-// ========== INISIALISASI ==========
+// ---------- INISIALISASI ----------
 updateLabels();
 syncHeightToWidth();
 updateExportLabels();
 setDistribution("random");
 updateFileLabel();
 updateRepeatLabel();
-drawPattern();
+drawPattern().catch(console.error);
