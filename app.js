@@ -1,6 +1,6 @@
 // ============================================================
 // app.js – Seamless Pattern Generator
-// (Dengan pewarnaan per path untuk mode multi + fix file picker)
+// (Dengan pewarnaan per path untuk mode multi + opsi download individual)
 // ============================================================
 
 const els = {
@@ -34,6 +34,7 @@ const els = {
   downloadSvgBtn: document.querySelector("#downloadSvgBtn"),
   batchCount: document.querySelector("#batchCount"),
   batchFormat: document.querySelector("#batchFormat"),
+  batchOutputMode: document.querySelector("#batchOutputMode"), // tambahan
   batchDownloadCountBtn: document.querySelector("#batchDownloadCountBtn"),
   batchDownloadJsonBtn: document.querySelector("#batchDownloadJsonBtn"),
   batchStatus: document.querySelector("#batchStatus"),
@@ -301,7 +302,6 @@ function modifySvgWithMultiColors(svgText, colors, seed) {
   const svg = doc.querySelector("svg");
   if (!svg) return svgText;
 
-  // Semua elemen yang bisa diisi
   const elements = svg.querySelectorAll(
     "path, circle, rect, ellipse, polygon, polyline, line, text"
   );
@@ -340,7 +340,7 @@ function makeCandidate(index, settings, random, longSide, aspect, point = null) 
   const position = edgePoint ?? point ?? PatternDistribution.randomPosition(settings, random, base);
 
   return {
-    id: index, // untuk identifikasi unik
+    id: index,
     x: position.x,
     y: position.y,
     width: dimensions.width,
@@ -471,7 +471,7 @@ function buildPlacements(settings) {
   return placed;
 }
 
-// ---------- RENDER SUMBER GAMBAR (dengan pewarnaan) ----------
+// ---------- RENDER SUMBER GAMBAR ----------
 async function renderSourceFor(item) {
   if (item.renderSource) return item.renderSource;
   const settings = getSettings();
@@ -479,7 +479,6 @@ async function renderSourceFor(item) {
   if (settings.coloring.mode === "original") {
     item.renderSource = item.source.image;
   } else if (settings.coloring.mode === "single") {
-    // Satu warna untuk seluruh objek
     const color = item.color || settings.coloring.singleColor;
     const off = document.createElement("canvas");
     off.width = Math.max(1, Math.round(item.width));
@@ -493,7 +492,6 @@ async function renderSourceFor(item) {
   } else if (settings.coloring.mode === "multi") {
     const colors = settings.coloring.colors;
     if (!colors.length) {
-      // Fallback ke original
       item.renderSource = item.source.image;
     } else {
       const seed = settings.seed + (item.id || 0);
@@ -515,7 +513,7 @@ async function renderSourceFor(item) {
 
 function drawImageItem(item, dx, dy) {
   const source = item.renderSource;
-  if (!source) return; // safety
+  if (!source) return;
   ctx.save();
   ctx.translate(item.x + dx, item.y + dy);
   ctx.rotate((item.rotation * Math.PI) / 180);
@@ -578,11 +576,9 @@ async function drawPattern() {
       return;
     }
 
-    // Buat placements dan render semua sumber gambar
     state.placements = buildPlacements(settings);
     await Promise.all(state.placements.map((item) => renderSourceFor(item)));
 
-    // Gambar semua objek
     state.placements.forEach((item) => {
       PatternCollision.wrapOffsets(item, settings).forEach(({ dx, dy }) =>
         drawImageItem(item, dx, dy)
@@ -844,55 +840,72 @@ async function batchDownloadByCount() {
 
   const count = clamp(Math.round(numberFrom(els.batchCount)) || 1, 1, 500);
   const format = els.batchFormat.value;
-  const zipName = `batch-count-${Date.now()}.zip`;
-
-  let handle = null;
-  let useFilePicker = false;
-  if (window.showSaveFilePicker) {
-    try {
-      handle = await window.showSaveFilePicker({
-        suggestedName: zipName,
-        types: [{ description: "ZIP archive", accept: { "application/zip": [".zip"] } }],
-      });
-      useFilePicker = true;
-    } catch (error) {
-      if (error?.name === "AbortError") {
-        els.batchStatus.textContent = "Batch dibatalkan.";
-        return;
-      }
-      console.warn("File picker failed, falling back to download:", error);
-      handle = null;
-      useFilePicker = false;
-    }
-  }
+  const outputMode = els.batchOutputMode ? els.batchOutputMode.value : "zip";
 
   const originalSeed = els.seed.value;
   els.batchDownloadCountBtn.disabled = true;
   els.batchStatus.textContent = "Menyiapkan batch berdasarkan jumlah...";
 
   try {
-    const { downloadZip } = await import(CLIENT_ZIP_URL);
-    const response = downloadZip(batchGeneratorByCount(count, format));
+    if (outputMode === "individual") {
+      // Download satu per satu
+      let fileCount = 0;
+      for await (const file of batchGeneratorByCount(count, format)) {
+        const url = URL.createObjectURL(file.input);
+        download(file.name, url);
+        URL.revokeObjectURL(url);
+        fileCount++;
+        els.batchStatus.textContent = `Mengunduh ${fileCount} ...`;
+        // Beri jeda agar tidak dianggap spam
+        await new Promise(resolve => setTimeout(resolve, 300));
+      }
+      els.batchStatus.textContent = `Selesai. ${fileCount} file diunduh secara individual.`;
+    } else {
+      // Mode zip
+      const zipName = `batch-count-${Date.now()}.zip`;
+      let handle = null;
+      let useFilePicker = false;
+      if (window.showSaveFilePicker) {
+        try {
+          handle = await window.showSaveFilePicker({
+            suggestedName: zipName,
+            types: [{ description: "ZIP archive", accept: { "application/zip": [".zip"] } }],
+          });
+          useFilePicker = true;
+        } catch (error) {
+          if (error?.name === "AbortError") {
+            els.batchStatus.textContent = "Batch dibatalkan.";
+            return;
+          }
+          console.warn("File picker failed, falling back to download:", error);
+          handle = null;
+          useFilePicker = false;
+        }
+      }
 
-    if (handle && useFilePicker) {
-      try {
-        const writable = await handle.createWritable();
-        await response.body.pipeTo(writable);
-        els.batchStatus.textContent = `Selesai. ${count} pattern (seed dari JSON atau acak) disimpan ke ${zipName}.`;
-      } catch (writeError) {
-        console.warn("Failed to write via file picker, falling back to download:", writeError);
+      const { downloadZip } = await import(CLIENT_ZIP_URL);
+      const response = downloadZip(batchGeneratorByCount(count, format));
+
+      if (handle && useFilePicker) {
+        try {
+          const writable = await handle.createWritable();
+          await response.body.pipeTo(writable);
+          els.batchStatus.textContent = `Selesai. ${count} pattern disimpan ke ${zipName}.`;
+        } catch (writeError) {
+          console.warn("Failed to write via file picker, falling back to download:", writeError);
+          const blob = await response.blob();
+          const url = URL.createObjectURL(blob);
+          download(zipName, url);
+          window.setTimeout(() => URL.revokeObjectURL(url), 500);
+          els.batchStatus.textContent = `Selesai (fallback). ${count} pattern diunduh sebagai ${zipName}.`;
+        }
+      } else {
         const blob = await response.blob();
         const url = URL.createObjectURL(blob);
         download(zipName, url);
         window.setTimeout(() => URL.revokeObjectURL(url), 500);
-        els.batchStatus.textContent = `Selesai (fallback). ${count} pattern diunduh sebagai ${zipName}.`;
+        els.batchStatus.textContent = `Selesai. ${count} pattern diunduh sebagai ${zipName}.`;
       }
-    } else {
-      const blob = await response.blob();
-      const url = URL.createObjectURL(blob);
-      download(zipName, url);
-      window.setTimeout(() => URL.revokeObjectURL(url), 500);
-      els.batchStatus.textContent = `Selesai. ${count} pattern (seed dari JSON atau acak) diunduh sebagai ${zipName}.`;
     }
   } catch (error) {
     els.batchStatus.textContent = `Gagal membuat batch: ${error.message}`;
@@ -1042,58 +1055,72 @@ async function batchDownloadByJson() {
   }
 
   const format = els.batchFormat.value;
-  const zipName = `batch-json-${Date.now()}.zip`;
-
-  let handle = null;
-  let useFilePicker = false;
-  if (window.showSaveFilePicker) {
-    try {
-      handle = await window.showSaveFilePicker({
-        suggestedName: zipName,
-        types: [{ description: "ZIP archive", accept: { "application/zip": [".zip"] } }],
-      });
-      useFilePicker = true;
-    } catch (error) {
-      if (error?.name === "AbortError") {
-        els.batchStatus.textContent = "Batch dibatalkan.";
-        return;
-      }
-      console.warn("File picker failed, falling back to download:", error);
-      handle = null;
-      useFilePicker = false;
-    }
-  }
+  const outputMode = els.batchOutputMode ? els.batchOutputMode.value : "zip";
 
   const originalSeed = els.seed.value;
   els.batchDownloadJsonBtn.disabled = true;
   els.batchStatus.textContent = "Menyiapkan batch dari JSON...";
 
   try {
-    const { downloadZip } = await import(CLIENT_ZIP_URL);
-    const response = downloadZip(batchGeneratorByJson(state.batchJsonData, format));
+    if (outputMode === "individual") {
+      let fileCount = 0;
+      for await (const file of batchGeneratorByJson(state.batchJsonData, format)) {
+        const url = URL.createObjectURL(file.input);
+        download(file.name, url);
+        URL.revokeObjectURL(url);
+        fileCount++;
+        els.batchStatus.textContent = `Mengunduh ${fileCount} ...`;
+        await new Promise(resolve => setTimeout(resolve, 300));
+      }
+      els.batchStatus.textContent = `Selesai. ${fileCount} file diunduh secara individual.`;
+    } else {
+      const zipName = `batch-json-${Date.now()}.zip`;
+      let handle = null;
+      let useFilePicker = false;
+      if (window.showSaveFilePicker) {
+        try {
+          handle = await window.showSaveFilePicker({
+            suggestedName: zipName,
+            types: [{ description: "ZIP archive", accept: { "application/zip": [".zip"] } }],
+          });
+          useFilePicker = true;
+        } catch (error) {
+          if (error?.name === "AbortError") {
+            els.batchStatus.textContent = "Batch dibatalkan.";
+            return;
+          }
+          console.warn("File picker failed, falling back to download:", error);
+          handle = null;
+          useFilePicker = false;
+        }
+      }
 
-    if (handle && useFilePicker) {
-      try {
-        const writable = await handle.createWritable();
-        await response.body.pipeTo(writable);
-        const total = state.batchJsonData.length * sources.length;
-        els.batchStatus.textContent = `Selesai. ${total} pattern dari JSON disimpan ke ${zipName}.`;
-      } catch (writeError) {
-        console.warn("Failed to write via file picker, falling back to download:", writeError);
+      const { downloadZip } = await import(CLIENT_ZIP_URL);
+      const response = downloadZip(batchGeneratorByJson(state.batchJsonData, format));
+
+      if (handle && useFilePicker) {
+        try {
+          const writable = await handle.createWritable();
+          await response.body.pipeTo(writable);
+          const total = state.batchJsonData.length * sources.length;
+          els.batchStatus.textContent = `Selesai. ${total} pattern dari JSON disimpan ke ${zipName}.`;
+        } catch (writeError) {
+          console.warn("Failed to write via file picker, falling back to download:", writeError);
+          const blob = await response.blob();
+          const url = URL.createObjectURL(blob);
+          download(zipName, url);
+          window.setTimeout(() => URL.revokeObjectURL(url), 500);
+          const total = state.batchJsonData.length * sources.length;
+          els.batchStatus.textContent = `Selesai (fallback). ${total} pattern dari JSON diunduh sebagai ${zipName}.`;
+        }
+      } else {
         const blob = await response.blob();
         const url = URL.createObjectURL(blob);
         download(zipName, url);
         window.setTimeout(() => URL.revokeObjectURL(url), 500);
         const total = state.batchJsonData.length * sources.length;
-        els.batchStatus.textContent = `Selesai (fallback). ${total} pattern dari JSON diunduh sebagai ${zipName}.`;
+        els.batchStatus.textContent = `Selesai. ${total} pattern dari JSON diunduh sebagai ${zipName}.`;
       }
-    } else {
-      const blob = await response.blob();
-      const url = URL.createObjectURL(blob);
-      download(zipName, url);
-      window.setTimeout(() => URL.revokeObjectURL(url), 500);
-      const total = state.batchJsonData.length * sources.length;
-      els.batchStatus.textContent = `Selesai. ${total} pattern dari JSON diunduh sebagai ${zipName}.`;
     }
   } catch (error) {
     els.batchStatus.textContent = `Gagal membuat batch: ${error.message}`;
@@ -1183,7 +1210,6 @@ els.randomMode.addEventListener("input", () => {
   drawPattern().catch(console.error);
 });
 
-// Saat mode warna berubah, hapus cache renderSource
 els.colorMode.forEach((input) => {
   input.addEventListener("input", () => {
     state.placements.forEach(item => delete item.renderSource);
