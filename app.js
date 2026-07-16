@@ -32,9 +32,10 @@ const els = {
   shuffleBtn: document.querySelector("#shuffleBtn"),
   downloadPngBtn: document.querySelector("#downloadPngBtn"),
   downloadSvgBtn: document.querySelector("#downloadSvgBtn"),
+  downloadJpgBtn: document.querySelector("#downloadJpgBtn"),
   batchCount: document.querySelector("#batchCount"),
   batchFormat: document.querySelector("#batchFormat"),
-  batchOutputMode: document.querySelector("#batchOutputMode"), // tambahan
+  batchOutputMode: document.querySelector("#batchOutputMode"),
   batchDownloadCountBtn: document.querySelector("#batchDownloadCountBtn"),
   batchDownloadJsonBtn: document.querySelector("#batchDownloadJsonBtn"),
   batchStatus: document.querySelector("#batchStatus"),
@@ -65,6 +66,13 @@ const els = {
   uncheckAllBtn: document.querySelector("#uncheckAllBtn"),
   resetFilesBtn: document.querySelector("#resetFilesBtn"),
   batchMode: document.querySelectorAll('input[name="batchMode"]'),
+  // JPG elements
+  jpgSettings: document.querySelector("#jpgSettings"),
+  jpgDpi: document.querySelector("#jpgDpi"),
+  printWidth: document.querySelector("#printWidth"),
+  printHeight: document.querySelector("#printHeight"),
+  jpgQuality: document.querySelector("#jpgQuality"),
+  pixelDimensions: document.querySelector("#pixelDimensions"),
 };
 
 const ctx = els.canvas.getContext("2d");
@@ -131,6 +139,16 @@ function randomHexColor() {
 
 function checkedSources() {
   return state.sources.filter((source) => source.checked);
+}
+
+// ---------- JPG UTILITY ----------
+function updatePixelDimensions() {
+  const dpi = parseInt(els.jpgDpi.value) || 300;
+  const width = parseFloat(els.printWidth.value) || 4;
+  const height = parseFloat(els.printHeight.value) || 6;
+  const pixelW = Math.round(width * dpi);
+  const pixelH = Math.round(height * dpi);
+  els.pixelDimensions.textContent = `${pixelW} × ${pixelH}`;
 }
 
 // ---------- SETTINGS ----------
@@ -725,6 +743,41 @@ function downloadSvg() {
   window.setTimeout(() => URL.revokeObjectURL(url), 500);
 }
 
+// ---------- DOWNLOAD JPG INDIVIDUAL ----------
+function downloadJpg() {
+  if (!state.placements.length) {
+    alert('Generate pattern terlebih dahulu!');
+    return;
+  }
+
+  const settings = getSettings();
+  const dpi = parseInt(els.jpgDpi.value) || 300;
+  const printWidth = parseFloat(els.printWidth.value) || 4;
+  const printHeight = parseFloat(els.printHeight.value) || 6;
+  const quality = parseFloat(els.jpgQuality.value) || 0.92;
+  const pixelWidth = Math.round(printWidth * dpi);
+  const pixelHeight = Math.round(printHeight * dpi);
+
+  const jpgCanvas = document.createElement('canvas');
+  jpgCanvas.width = pixelWidth;
+  jpgCanvas.height = pixelHeight;
+  const jpgCtx = jpgCanvas.getContext('2d');
+  
+  if (settings.background.mode === "color") {
+    jpgCtx.fillStyle = settings.background.color;
+    jpgCtx.fillRect(0, 0, pixelWidth, pixelHeight);
+  }
+  
+  jpgCtx.drawImage(els.canvas, 0, 0, pixelWidth, pixelHeight);
+  
+  jpgCanvas.toBlob(function(blob) {
+    const url = URL.createObjectURL(blob);
+    const filename = `seamless-pattern-${exportFileLabel(settings)}-${dpi}dpi-${els.seed.value}.jpg`;
+    download(filename, url);
+    window.setTimeout(() => URL.revokeObjectURL(url), 500);
+  }, 'image/jpeg', quality);
+}
+
 // ---------- HANDLE FILE ----------
 async function handleFiles(event) {
   const files = Array.from(event.target.files || []);
@@ -805,6 +858,13 @@ async function* batchGeneratorByCount(count, format) {
 
   const sourceName = getSourceName();
 
+  const jpgDpi = parseInt(els.jpgDpi.value) || 300;
+  const printWidth = parseFloat(els.printWidth.value) || 4;
+  const printHeight = parseFloat(els.printHeight.value) || 6;
+  const jpgQuality = parseFloat(els.jpgQuality.value) || 0.92;
+  const pixelWidth = Math.round(printWidth * jpgDpi);
+  const pixelHeight = Math.round(printHeight * jpgDpi);
+
   for (let i = 0; i < seeds.length; i++) {
     const seed = seeds[i];
     els.seed.value = seed;
@@ -829,6 +889,34 @@ async function* batchGeneratorByCount(count, format) {
         lastModified: new Date(),
       };
     }
+    if (format === "jpg" || format === "both") {
+      const jpgCanvas = document.createElement('canvas');
+      jpgCanvas.width = pixelWidth;
+      jpgCanvas.height = pixelHeight;
+      const jpgCtx = jpgCanvas.getContext('2d');
+      
+      if (settings.background.mode === "color") {
+        jpgCtx.fillStyle = settings.background.color;
+        jpgCtx.fillRect(0, 0, pixelWidth, pixelHeight);
+      }
+      
+      jpgCtx.drawImage(els.canvas, 0, 0, pixelWidth, pixelHeight);
+      
+      const jpgBlob = await new Promise(resolve => {
+        jpgCanvas.toBlob(resolve, 'image/jpeg', jpgQuality);
+      });
+      
+      if (jpgBlob) {
+        yield { 
+          name: `jpg/${baseName}.jpg`, 
+          input: jpgBlob, 
+          lastModified: new Date() 
+        };
+      }
+      
+      jpgCanvas.width = 0;
+      jpgCanvas.height = 0;
+    }
   }
 }
 
@@ -848,7 +936,6 @@ async function batchDownloadByCount() {
 
   try {
     if (outputMode === "individual") {
-      // Download satu per satu
       let fileCount = 0;
       for await (const file of batchGeneratorByCount(count, format)) {
         const url = URL.createObjectURL(file.input);
@@ -856,12 +943,10 @@ async function batchDownloadByCount() {
         URL.revokeObjectURL(url);
         fileCount++;
         els.batchStatus.textContent = `Mengunduh ${fileCount} ...`;
-        // Beri jeda agar tidak dianggap spam
         await new Promise(resolve => setTimeout(resolve, 300));
       }
       els.batchStatus.textContent = `Selesai. ${fileCount} file diunduh secara individual.`;
     } else {
-      // Mode zip
       const zipName = `batch-count-${Date.now()}.zip`;
       let handle = null;
       let useFilePicker = false;
@@ -974,6 +1059,13 @@ async function* batchGeneratorByJson(jsonData, format) {
 
   const backupChecked = state.sources.map(src => src.checked);
 
+  const jpgDpi = parseInt(els.jpgDpi.value) || 300;
+  const printWidth = parseFloat(els.printWidth.value) || 4;
+  const printHeight = parseFloat(els.printHeight.value) || 6;
+  const jpgQuality = parseFloat(els.jpgQuality.value) || 0.92;
+  const pixelWidth = Math.round(printWidth * jpgDpi);
+  const pixelHeight = Math.round(printHeight * jpgDpi);
+
   for (let i = 0; i < jsonData.length; i++) {
     const jsonItem = jsonData[i];
     applySettingsFromObject(jsonItem);
@@ -998,6 +1090,34 @@ async function* batchGeneratorByJson(jsonData, format) {
           input: new Blob([svg], { type: "image/svg+xml" }),
           lastModified: new Date(),
         };
+      }
+      if (format === "jpg" || format === "both") {
+        const jpgCanvas = document.createElement('canvas');
+        jpgCanvas.width = pixelWidth;
+        jpgCanvas.height = pixelHeight;
+        const jpgCtx = jpgCanvas.getContext('2d');
+        
+        if (settings.background.mode === "color") {
+          jpgCtx.fillStyle = settings.background.color;
+          jpgCtx.fillRect(0, 0, pixelWidth, pixelHeight);
+        }
+        
+        jpgCtx.drawImage(els.canvas, 0, 0, pixelWidth, pixelHeight);
+        
+        const jpgBlob = await new Promise(resolve => {
+          jpgCanvas.toBlob(resolve, 'image/jpeg', jpgQuality);
+        });
+        
+        if (jpgBlob) {
+          yield { 
+            name: `jpg/${baseName}.jpg`, 
+            input: jpgBlob, 
+            lastModified: new Date() 
+          };
+        }
+        
+        jpgCanvas.width = 0;
+        jpgCanvas.height = 0;
       }
     } else {
       const sources = mode === 'all' ? state.sources : checkedSources();
@@ -1029,6 +1149,34 @@ async function* batchGeneratorByJson(jsonData, format) {
             input: new Blob([svg], { type: "image/svg+xml" }),
             lastModified: new Date(),
           };
+        }
+        if (format === "jpg" || format === "both") {
+          const jpgCanvas = document.createElement('canvas');
+          jpgCanvas.width = pixelWidth;
+          jpgCanvas.height = pixelHeight;
+          const jpgCtx = jpgCanvas.getContext('2d');
+          
+          if (settingsLocal.background.mode === "color") {
+            jpgCtx.fillStyle = settingsLocal.background.color;
+            jpgCtx.fillRect(0, 0, pixelWidth, pixelHeight);
+          }
+          
+          jpgCtx.drawImage(els.canvas, 0, 0, pixelWidth, pixelHeight);
+          
+          const jpgBlob = await new Promise(resolve => {
+            jpgCanvas.toBlob(resolve, 'image/jpeg', jpgQuality);
+          });
+          
+          if (jpgBlob) {
+            yield { 
+              name: `jpg/${baseName}.jpg`, 
+              input: jpgBlob, 
+              lastModified: new Date() 
+            };
+          }
+          
+          jpgCanvas.width = 0;
+          jpgCanvas.height = 0;
         }
       }
     }
@@ -1271,6 +1419,7 @@ els.sampleBtn.addEventListener("click", useSampleSvg);
 els.shuffleBtn.addEventListener("click", shuffleSeed);
 els.downloadPngBtn.addEventListener("click", downloadPng);
 els.downloadSvgBtn.addEventListener("click", downloadSvg);
+els.downloadJpgBtn.addEventListener("click", downloadJpg);
 els.batchDownloadCountBtn.addEventListener("click", batchDownloadByCount);
 els.batchDownloadJsonBtn.addEventListener("click", batchDownloadByJson);
 els.previewScale.addEventListener("input", () => updatePreviewBackground());
@@ -1302,6 +1451,120 @@ if (els.importJsonInput) {
   });
 }
 
+// ---------- JPG EVENT LISTENERS ----------
+els.batchFormat.addEventListener('change', function() {
+  if (this.value === 'jpg' || this.value === 'both') {
+    els.jpgSettings.classList.add('visible');
+    updatePixelDimensions();
+  } else {
+    els.jpgSettings.classList.remove('visible');
+  }
+});
+
+els.jpgDpi.addEventListener('input', updatePixelDimensions);
+els.printWidth.addEventListener('input', updatePixelDimensions);
+els.printHeight.addEventListener('input', updatePixelDimensions);
+
+document.querySelectorAll('.preset-size-btn').forEach(btn => {
+  btn.addEventListener('click', function() {
+    els.printWidth.value = this.dataset.w;
+    els.printHeight.value = this.dataset.h;
+    updatePixelDimensions();
+  });
+});
+
+// ============================================================
+// COLLAPSIBLE SECTIONS
+// ============================================================
+
+document.querySelectorAll('.section-header').forEach(header => {
+  header.addEventListener('click', function(e) {
+    // Jangan toggle jika klik tombol collapse
+    if (e.target.closest('.collapse-btn')) return;
+    
+    const targetId = this.dataset.section;
+    const body = document.getElementById(`section-${targetId}`);
+    const btn = this.querySelector('.collapse-btn');
+    
+    if (body) {
+      body.classList.toggle('collapsed');
+      btn.classList.toggle('collapsed');
+      btn.textContent = body.classList.contains('collapsed') ? '+' : '−';
+    }
+  });
+});
+
+document.querySelectorAll('.collapse-btn').forEach(btn => {
+  btn.addEventListener('click', function(e) {
+    e.stopPropagation();
+    const targetId = this.dataset.target;
+    const body = document.getElementById(`section-${targetId}`);
+    const header = this.closest('.section-header');
+    
+    if (body) {
+      body.classList.toggle('collapsed');
+      this.classList.toggle('collapsed');
+      this.textContent = body.classList.contains('collapsed') ? '+' : '−';
+    }
+  });
+});
+
+// ============================================================
+// JPG ORIENTATION
+// ============================================================
+
+document.getElementById('applyOrientationBtn').addEventListener('click', function() {
+  const orientation = document.querySelector('input[name="jpgOrientation"]:checked');
+  if (!orientation) return;
+  
+  const widthInput = document.getElementById('printWidth');
+  const heightInput = document.getElementById('printHeight');
+  const currentWidth = parseFloat(widthInput.value) || 4;
+  const currentHeight = parseFloat(heightInput.value) || 6;
+  
+  switch (orientation.value) {
+    case 'portrait':
+      // Pastikan width < height
+      if (currentWidth >= currentHeight) {
+        widthInput.value = Math.min(currentWidth, currentHeight);
+        heightInput.value = Math.max(currentWidth, currentHeight);
+      }
+      break;
+    case 'landscape':
+      // Pastikan width > height
+      if (currentWidth <= currentHeight) {
+        widthInput.value = Math.max(currentWidth, currentHeight);
+        heightInput.value = Math.min(currentWidth, currentHeight);
+      }
+      break;
+    case 'square':
+      // Set width = height (ambil rata-rata)
+      const avg = (currentWidth + currentHeight) / 2;
+      widthInput.value = Math.round(avg * 10) / 10;
+      heightInput.value = Math.round(avg * 10) / 10;
+      break;
+  }
+  
+  updatePixelDimensions();
+});
+
+// ============================================================
+// VERTICAL SLIDER - Contoh penggunaan
+// ============================================================
+
+// Fungsi untuk mengubah control-grid menjadi vertical
+function setVerticalSlider(containerId) {
+  const container = document.getElementById(containerId);
+  if (container) {
+    container.classList.add('vertical');
+  }
+}
+
+// Contoh: Ubah slider list menjadi vertical
+// Panggil fungsi ini jika ingin mengubah style slider
+// setVerticalSlider('section-slider');
+// Atau tambahkan class manual di HTML: class="control-grid vertical"
+
 // ---------- INISIALISASI ----------
 updateLabels();
 syncHeightToWidth();
@@ -1309,4 +1572,13 @@ updateExportLabels();
 setDistribution("random");
 updateFileLabel();
 updateRepeatLabel();
+
+// Inisialisasi JPG settings
+if (els.batchFormat.value === 'jpg' || els.batchFormat.value === 'both') {
+  els.jpgSettings.classList.add('visible');
+  updatePixelDimensions();
+} else {
+  els.jpgSettings.classList.remove('visible');
+}
+
 drawPattern().catch(console.error);
