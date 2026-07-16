@@ -42,33 +42,58 @@
         </div>
 
         <!-- ===== SECTION: CANVAS & SEED ===== -->
-        <div class="section">
-          <div class="section-header" data-section="canvas">
-            <h3>📐 Canvas & Seed</h3>
-            <button type="button" class="collapse-btn" data-target="canvas">−</button>
-          </div>
-          <div class="section-body" id="section-canvas">
-            <div class="control-grid">
-              <label>
-                <span>Lebar canvas</span>
-                <input id="tileWidth" type="number" min="640" max="7680" step="16" value="3840" />
-              </label>
-              <label>
-                <span>Tinggi canvas</span>
-                <input id="tileHeight" type="number" min="360" max="4320" step="9" value="2160" />
-              </label>
-              <label>
-                <span>Jumlah objek</span>
-                <input id="count" type="number" min="1" max="160" step="1" value="28" />
-              </label>
-              <label>
-                <span>Seed</span>
-                <input id="seed" type="number" min="1" max="999999" step="1" value="1842" />
-              </label>
-            </div>
-          </div>
-        </div>
+<div class="section">
+  <div class="section-header" data-section="canvas">
+    <h3>📐 Canvas & Seed</h3>
+    <button type="button" class="collapse-btn" data-target="canvas">−</button>
+  </div>
+  <div class="section-body" id="section-canvas">
+    <!-- Aspect Ratio Selector -->
+    <div class="aspect-ratio-selector">
+      <span style="font-size:13px; color:var(--muted); font-weight:500;">Aspect Ratio:</span>
+      <label class="switch">
+        <input type="radio" name="aspectRatio" value="16:9"  />
+        <span>16:9</span>
+      </label>
+      <label class="switch">
+        <input type="radio" name="aspectRatio" value="1:1" checked />
+        <span>1:1</span>
+      </label>
+      <label class="switch">
+        <input type="radio" name="aspectRatio" value="4:3" />
+        <span>4:3</span>
+      </label>
+      <label class="switch">
+        <input type="radio" name="aspectRatio" value="3:2" />
+        <span>3:2</span>
+      </label>
+      <label class="switch">
+        <input type="radio" name="aspectRatio" value="21:9" />
+        <span>21:9</span>
+      </label>
+      <button type="button" id="applyAspectBtn" class="primary" style="padding:2px 14px; min-height:0; font-size:12px;">Apply</button>
+    </div>
 
+    <div class="control-grid">
+      <label>
+        <span>Lebar canvas</span>
+        <input id="tileWidth" type="number" min="640" max="7680" step="16" value="3840" />
+      </label>
+      <label>
+        <span>Tinggi canvas</span>
+        <input id="tileHeight" type="number" min="360" max="7680" step="16" value="2160" />
+      </label>
+      <label>
+        <span>Jumlah objek</span>
+        <input id="count" type="number" min="1" max="160" step="1" value="28" />
+      </label>
+      <label>
+        <span>Seed</span>
+        <input id="seed" type="number" min="1" max="999999" step="1" value="1842" />
+      </label>
+    </div>
+  </div>
+</div>
         <!-- ===== SECTION: SLIDER ===== -->
         <div class="section">
           <div class="section-header" data-section="slider">
@@ -250,8 +275,8 @@
                   <select id="batchFormat">
                     <option value="png">PNG</option>
                     <option value="svg">SVG</option>
-                    <option value="jpg">JPG</option>
-                    <option value="both" selected>SVG + PNG</option>
+                    <option value="jpg"selected >JPG</option>
+                    <option value="both">SVG + PNG</option>
                   </select>
                 </label>
               </div>
@@ -265,7 +290,7 @@
                   </label>
                   <label>
                     <span>Lebar cetak (inch)</span>
-                    <input id="printWidth" type="number" min="1" max="100" step="0.5" value="4" />
+                    <input id="printWidth" type="number" min="1" max="100" step="0.5" value="6" />
                   </label>
                   <label>
                     <span>Tinggi cetak (inch)</span>
@@ -277,7 +302,7 @@
                 <div class="jpg-settings-orientation">
                   <span>Orientasi:</span>
                   <label class="switch">
-                    <input type="radio" name="jpgOrientation" value="portrait" checked />
+                    <input type="radio" name="jpgOrientation" value="portrait"  />
                     <span>Potrait</span>
                   </label>
                   <label class="switch">
@@ -285,7 +310,7 @@
                     <span>Landscape</span>
                   </label>
                   <label class="switch">
-                    <input type="radio" name="jpgOrientation" value="square" />
+                    <input type="radio" name="jpgOrientation" value="square" checked />
                     <span>Square</span>
                   </label>
                   <button type="button" id="applyOrientationBtn" class="primary" style="padding: 2px 12px; min-height: 0; font-size: 12px;">Apply</button>

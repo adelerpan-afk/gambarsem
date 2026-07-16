@@ -369,7 +369,6 @@ button.primary:hover {
   font-size: 13px;
 }
 
-/* Layout baru: tile canvas di atas, repeat preview di bawah */
 .preview-layout {
   display: flex;
   flex-direction: column;
@@ -432,10 +431,8 @@ button.primary:hover {
   display: flex;
   justify-content: center;
   align-items: center;
-  /* konten akan diisi oleh JS, misalnya canvas atau gambar */
 }
 
-/* thumb strip */
 .thumb-strip {
   display: flex;
   align-items: center;
@@ -608,6 +605,10 @@ button.primary:hover {
   line-height: 1.4;
 }
 
+/* ============================================================
+   RESPONSIVE
+   ============================================================ */
+
 @media (max-width: 880px) {
   .app-shell {
     padding: 0;
@@ -642,133 +643,15 @@ button.primary:hover {
   .repeat-preview-container {
     min-height: 150px;
   }
-}
 
-/* ============================================================
-   JPG / DPI SETTINGS
-   ============================================================ */
-
-.jpg-settings {
-  display: none;
-  margin-top: 10px;
-  padding: 14px 16px;
-  background: #f0f4f2;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-}
-
-.jpg-settings.visible {
-  display: block;
-}
-
-.jpg-settings-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
-  gap: 12px;
-}
-
-.jpg-settings-grid label {
-  display: grid;
-  gap: 4px;
-  color: var(--muted);
-  font-size: 13px;
-}
-
-.jpg-settings-grid label span {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.jpg-settings-grid label small {
-  font-weight: 400;
-  opacity: 0.7;
-}
-
-.jpg-settings-grid input {
-  width: 100%;
-  height: 38px;
-  padding: 0 10px;
-  color: var(--ink);
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: #fff;
-}
-
-.jpg-settings-grid input:focus {
-  outline: 2px solid var(--accent);
-  outline-offset: 1px;
-}
-
-.jpg-settings-footer {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 12px 20px;
-  margin-top: 10px;
-  font-size: 12px;
-  color: var(--muted);
-}
-
-.jpg-settings-footer strong {
-  color: var(--ink);
-}
-
-.jpg-quality-select {
-  padding: 2px 8px;
-  border: 1px solid var(--line);
-  border-radius: 4px;
-  background: #fff;
-  font: inherit;
-  font-size: 12px;
-  color: var(--ink);
-  cursor: pointer;
-}
-
-.jpg-quality-select:focus {
-  outline: 2px solid var(--accent);
-  outline-offset: 1px;
-}
-
-.preset-sizes {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin-top: 8px;
-  flex-wrap: wrap;
-}
-
-.preset-sizes span {
-  font-size: 12px;
-  color: var(--muted);
-}
-
-.preset-size-btn {
-  padding: 2px 12px;
-  min-height: 0;
-  font-size: 11px;
-  line-height: 1.6;
-  border: 1px solid var(--line);
-  border-radius: 4px;
-  background: #fff;
-  color: var(--ink);
-  cursor: pointer;
-  transition: all 0.15s ease;
-}
-
-.preset-size-btn:hover {
-  border-color: var(--accent);
-  background: #f0faf7;
-}
-
-.preset-size-btn:active {
-  transform: scale(0.96);
-}
-
-/* Responsive untuk JPG Settings */
-@media (max-width: 880px) {
   .jpg-settings-grid {
     grid-template-columns: 1fr 1fr;
+  }
+  
+  .control-grid.vertical label {
+    grid-template-columns: 100px 1fr 50px;
+    gap: 6px;
+    font-size: 12px;
   }
 }
 
@@ -781,6 +664,33 @@ button.primary:hover {
     flex-direction: column;
     align-items: flex-start;
     gap: 6px;
+  }
+  
+  .jpg-settings-orientation {
+    gap: 6px;
+  }
+  
+  .control-grid.vertical label {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+  
+  .control-grid.vertical label output {
+    text-align: left;
+  }
+
+  .aspect-ratio-selector {
+    gap: 6px;
+    padding: 8px 10px;
+  }
+  
+  .aspect-ratio-selector .switch {
+    font-size: 12px;
+  }
+  
+  #applyAspectBtn {
+    margin-left: 0;
+    width: 100%;
   }
 }
 
@@ -857,7 +767,7 @@ button.primary:hover {
 }
 
 /* ============================================================
-   JPG / DPI SETTINGS (UPDATED)
+   JPG / DPI SETTINGS
    ============================================================ */
 
 .jpg-settings {
@@ -912,7 +822,6 @@ button.primary:hover {
   outline-offset: 1px;
 }
 
-/* UPDATE: Orientation */
 .jpg-settings-orientation {
   display: flex;
   align-items: center;
@@ -1015,7 +924,7 @@ button.primary:hover {
 }
 
 /* ============================================================
-   VERTICAL SLIDER (untuk class control)
+   VERTICAL SLIDER
    ============================================================ */
 
 .control-grid.vertical {
@@ -1077,42 +986,49 @@ button.primary:hover {
 }
 
 /* ============================================================
-   RESPONSIVE
+   ASPECT RATIO SELECTOR
    ============================================================ */
 
-@media (max-width: 880px) {
-  .jpg-settings-grid {
-    grid-template-columns: 1fr 1fr;
-  }
-  
-  .control-grid.vertical label {
-    grid-template-columns: 100px 1fr 50px;
-    gap: 6px;
-    font-size: 12px;
-  }
+.aspect-ratio-selector {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+  padding: 8px 14px;
+  background: #f8faf9;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  flex-wrap: wrap;
 }
 
-@media (max-width: 480px) {
-  .jpg-settings-grid {
-    grid-template-columns: 1fr;
-  }
-  
-  .jpg-settings-footer {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 6px;
-  }
-  
-  .jpg-settings-orientation {
-    gap: 6px;
-  }
-  
-  .control-grid.vertical label {
-    grid-template-columns: 1fr;
-    gap: 4px;
-  }
-  
-  .control-grid.vertical label output {
-    text-align: left;
-  }
+.aspect-ratio-selector .switch {
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.aspect-ratio-selector .switch input {
+  width: 15px;
+  height: 15px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.aspect-ratio-selector .switch span {
+  color: var(--ink);
+  font-weight: 500;
+}
+
+#applyAspectBtn {
+  padding: 2px 16px;
+  min-height: 0;
+  font-size: 12px;
+  line-height: 2;
+  border-radius: 4px;
+  margin-left: auto;
+}
+
+#statCanvasSize {
+  font-size: 12px;
 }

@@ -75,11 +75,75 @@ const els = {
   pixelDimensions: document.querySelector("#pixelDimensions"),
 };
 
-const ctx = els.canvas.getContext("2d");
+// ============================================================
+// CONSTANTS
+// ============================================================
+
 const CANVAS_RATIO = 16 / 9;
 const MAX_PLACEMENT_ATTEMPTS = 300;
 const MAX_SHRINK_STEPS = 6;
 const CLIENT_ZIP_URL = "https://cdn.jsdelivr.net/npm/client-zip@2.5.0/index.js";
+
+// Resolusi 4K
+const RESOLUTIONS = {
+  '4K': {
+    width: 3840,
+    height: 2160,
+    label: '4K (3840×2160)'
+  },
+  '4K_SQUARE': {
+    width: 3840,
+    height: 3840,
+    label: '4K Square (3840×3840)'
+  }
+};
+
+// ============================================================
+// ASPECT RATIO
+// ============================================================
+
+
+function applyAspectRatio() {
+  const selected = document.querySelector('input[name="aspectRatio"]:checked');
+  if (!selected) return;
+  
+  const widthInput = document.getElementById('tileWidth');
+  const heightInput = document.getElementById('tileHeight');
+  
+  // Base width 4K
+  const baseWidth = 3840;
+  let targetHeight;
+  
+  switch (selected.value) {
+    case '16:9':
+      targetHeight = Math.round(baseWidth / (16/9)); // 2160
+      break;
+    case '1:1':
+      targetHeight = baseWidth; // 3840
+      break;
+    case '4:3':
+      targetHeight = Math.round(baseWidth / (4/3)); // 2880
+      break;
+    case '3:2':
+      targetHeight = Math.round(baseWidth / (3/2)); // 2560
+      break;
+    case '21:9':
+      targetHeight = Math.round(baseWidth / (21/9)); // 1646
+      break;
+    default:
+      targetHeight = Math.round(baseWidth / (16/9));
+  }
+  
+  widthInput.value = baseWidth;
+  heightInput.value = targetHeight;
+  
+  // Trigger update
+  syncHeightToWidth();
+  updateExportLabels();
+  drawPattern().catch(console.error);
+}
+
+const ctx = els.canvas.getContext("2d");
 
 const state = {
   sources: [],
@@ -144,7 +208,7 @@ function checkedSources() {
 // ---------- JPG UTILITY ----------
 function updatePixelDimensions() {
   const dpi = parseInt(els.jpgDpi.value) || 300;
-  const width = parseFloat(els.printWidth.value) || 4;
+  const width = parseFloat(els.printWidth.value) || 6;
   const height = parseFloat(els.printHeight.value) || 6;
   const pixelW = Math.round(width * dpi);
   const pixelH = Math.round(height * dpi);
@@ -154,7 +218,8 @@ function updatePixelDimensions() {
 // ---------- SETTINGS ----------
 function getSettings() {
   const width = Math.round(numberFrom(els.tileWidth));
-  const height = Math.round(width / CANVAS_RATIO);
+  const height = Math.round(numberFrom(els.tileHeight));
+  
   const distribution = document.querySelector('input[name="distribution"]:checked')?.value ?? "random";
   const bgMode = document.querySelector('input[name="bgMode"]:checked')?.value ?? "transparent";
   const colorMode = document.querySelector('input[name="colorMode"]:checked')?.value ?? "original";
@@ -199,7 +264,12 @@ function updateRepeatLabel() {
 }
 
 function exportSizeLabel(settings = getSettings()) {
-  return settings.width === 3840 && settings.height === 2160 ? "4K" : `${settings.width}x${settings.height}`;
+  const is4K = settings.width === 3840 && settings.height === 2160;
+  const is4KSquare = settings.width === 3840 && settings.height === 3840;
+  
+  if (is4K) return "4K";
+  if (is4KSquare) return "4K-Square";
+  return `${settings.width}x${settings.height}`;
 }
 
 function exportFileLabel(settings = getSettings()) {
@@ -557,7 +627,19 @@ function updateStatsPanel(settings) {
   els.statDuplicateEdge.textContent = `${stats.duplicateEdgeObjects}`;
   els.statLargest.textContent = `${Math.round(stats.largestObject)} px2`;
   els.statSmallest.textContent = `${Math.round(stats.smallestObject)} px2`;
-  els.statCanvasSize.textContent = stats.canvasSize;
+  
+  // Update canvas size dengan aspect ratio label
+  const ratio = settings.width / settings.height;
+  let aspectLabel = '';
+  if (Math.abs(ratio - 16/9) < 0.01) aspectLabel = '16:9';
+  else if (Math.abs(ratio - 1) < 0.01) aspectLabel = '1:1';
+  else if (Math.abs(ratio - 4/3) < 0.01) aspectLabel = '4:3';
+  else if (Math.abs(ratio - 3/2) < 0.01) aspectLabel = '3:2';
+  else if (Math.abs(ratio - 21/9) < 0.01) aspectLabel = '21:9';
+  else aspectLabel = ratio.toFixed(2);
+  
+  els.statCanvasSize.textContent = `${settings.width} × ${settings.height} (${aspectLabel})`;
+  
   els.coverageBar.style.width = `${progressWidth}%`;
   els.coverageBar.classList.remove("coverage-good", "coverage-warn", "coverage-danger");
 
@@ -590,7 +672,7 @@ async function drawPattern() {
       updateStatsPanel(settings);
       els.statusText.textContent = state.sources.length
         ? "Centang minimal satu SVG untuk membuat pattern."
-        : "Upload SVG untuk mulai membuat pattern 16:9.";
+        : "Upload SVG untuk mulai membuat pattern.";
       return;
     }
 
@@ -610,7 +692,9 @@ async function drawPattern() {
       return sum + PatternCollision.wrapOffsets(item, settings).length - 1;
     }, 0);
     const skipped = state.skippedCount ? `, ${state.skippedCount} objek dilewati karena collision` : "";
-    els.statusText.textContent = `${state.placements.length} objek, ${duplicateCount} salinan tepi${skipped}, canvas ${settings.width} x ${settings.height}px, rasio 16:9.`;
+    
+    const aspectLabel = settings.width === settings.height ? 'Square 1:1' : 'Rectangle 16:9';
+    els.statusText.textContent = `${state.placements.length} objek, ${duplicateCount} salinan tepi${skipped}, ${aspectLabel} ${settings.width} x ${settings.height}px.`;
   } finally {
     isDrawing = false;
   }
@@ -834,12 +918,58 @@ function shuffleSeed() {
 
 function syncHeightToWidth() {
   const width = Math.round(numberFrom(els.tileWidth));
-  els.tileHeight.value = Math.round(width / CANVAS_RATIO);
+  const selected = document.querySelector('input[name="aspectRatio"]:checked');
+  
+  if (selected) {
+    switch (selected.value) {
+      case '1:1':
+        els.tileHeight.value = width;
+        break;
+      case '4:3':
+        els.tileHeight.value = Math.round(width / (4/3));
+        break;
+      case '3:2':
+        els.tileHeight.value = Math.round(width / (3/2));
+        break;
+      case '21:9':
+        els.tileHeight.value = Math.round(width / (21/9));
+        break;
+      case '16:9':
+      default:
+        els.tileHeight.value = Math.round(width / CANVAS_RATIO);
+        break;
+    }
+  } else {
+    els.tileHeight.value = Math.round(width / CANVAS_RATIO);
+  }
 }
 
 function syncWidthToHeight() {
   const height = Math.round(numberFrom(els.tileHeight));
-  els.tileWidth.value = Math.round(height * CANVAS_RATIO);
+  const selected = document.querySelector('input[name="aspectRatio"]:checked');
+  
+  if (selected) {
+    switch (selected.value) {
+      case '1:1':
+        els.tileWidth.value = height;
+        break;
+      case '4:3':
+        els.tileWidth.value = Math.round(height * (4/3));
+        break;
+      case '3:2':
+        els.tileWidth.value = Math.round(height * (3/2));
+        break;
+      case '21:9':
+        els.tileWidth.value = Math.round(height * (21/9));
+        break;
+      case '16:9':
+      default:
+        els.tileWidth.value = Math.round(height * CANVAS_RATIO);
+        break;
+    }
+  } else {
+    els.tileWidth.value = Math.round(height * CANVAS_RATIO);
+  }
 }
 
 function canvasToBlob(canvas) {
@@ -1474,12 +1604,24 @@ document.querySelectorAll('.preset-size-btn').forEach(btn => {
 });
 
 // ============================================================
+// ASPECT RATIO EVENT LISTENER
+// ============================================================
+
+document.getElementById('applyAspectBtn').addEventListener('click', applyAspectRatio);
+
+document.querySelectorAll('input[name="aspectRatio"]').forEach(radio => {
+  radio.addEventListener('change', function() {
+    // Optional: auto-apply without clicking button
+    // applyAspectRatio();
+  });
+});
+
+// ============================================================
 // COLLAPSIBLE SECTIONS
 // ============================================================
 
 document.querySelectorAll('.section-header').forEach(header => {
   header.addEventListener('click', function(e) {
-    // Jangan toggle jika klik tombol collapse
     if (e.target.closest('.collapse-btn')) return;
     
     const targetId = this.dataset.section;
@@ -1499,7 +1641,6 @@ document.querySelectorAll('.collapse-btn').forEach(btn => {
     e.stopPropagation();
     const targetId = this.dataset.target;
     const body = document.getElementById(`section-${targetId}`);
-    const header = this.closest('.section-header');
     
     if (body) {
       body.classList.toggle('collapsed');
@@ -1524,21 +1665,18 @@ document.getElementById('applyOrientationBtn').addEventListener('click', functio
   
   switch (orientation.value) {
     case 'portrait':
-      // Pastikan width < height
       if (currentWidth >= currentHeight) {
         widthInput.value = Math.min(currentWidth, currentHeight);
         heightInput.value = Math.max(currentWidth, currentHeight);
       }
       break;
     case 'landscape':
-      // Pastikan width > height
       if (currentWidth <= currentHeight) {
         widthInput.value = Math.max(currentWidth, currentHeight);
         heightInput.value = Math.min(currentWidth, currentHeight);
       }
       break;
     case 'square':
-      // Set width = height (ambil rata-rata)
       const avg = (currentWidth + currentHeight) / 2;
       widthInput.value = Math.round(avg * 10) / 10;
       heightInput.value = Math.round(avg * 10) / 10;
@@ -1549,10 +1687,9 @@ document.getElementById('applyOrientationBtn').addEventListener('click', functio
 });
 
 // ============================================================
-// VERTICAL SLIDER - Contoh penggunaan
+// VERTICAL SLIDER
 // ============================================================
 
-// Fungsi untuk mengubah control-grid menjadi vertical
 function setVerticalSlider(containerId) {
   const container = document.getElementById(containerId);
   if (container) {
@@ -1560,18 +1697,19 @@ function setVerticalSlider(containerId) {
   }
 }
 
-// Contoh: Ubah slider list menjadi vertical
-// Panggil fungsi ini jika ingin mengubah style slider
-// setVerticalSlider('section-slider');
-// Atau tambahkan class manual di HTML: class="control-grid vertical"
-
 // ---------- INISIALISASI ----------
 updateLabels();
-syncHeightToWidth();
 updateExportLabels();
 setDistribution("random");
 updateFileLabel();
 updateRepeatLabel();
+
+// Set default aspect ratio 16:9
+const defaultAspect = document.querySelector('input[name="aspectRatio"][value="1:1"]');
+if (defaultAspect) {
+  defaultAspect.checked = true;
+  applyAspectRatio();
+}
 
 // Inisialisasi JPG settings
 if (els.batchFormat.value === 'jpg' || els.batchFormat.value === 'both') {
