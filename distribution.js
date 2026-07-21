@@ -7,12 +7,6 @@
     return ((value % size) + size) % size;
   }
 
-  function toroidalDistance(a, b, settings) {
-    const dx = Math.abs(a.x - b.x);
-    const dy = Math.abs(a.y - b.y);
-    return Math.hypot(Math.min(dx, settings.width - dx), Math.min(dy, settings.height - dy));
-  }
-
   function keepInsideCanvas(point, settings, item) {
     if (settings.allowEdgeCuts) {
       return {
@@ -39,90 +33,120 @@
     );
   }
 
-  function gridPosition(index, settings, random) {
+  function gridPosition(index, settings, random, jitterFactor = 1) {
     const cols = Math.max(1, Math.ceil(Math.sqrt(settings.count * (settings.width / settings.height))));
     const rows = Math.max(1, Math.ceil(settings.count / cols));
     const col = index % cols;
     const row = Math.floor(index / cols) % rows;
     const cellW = settings.width / cols;
     const cellH = settings.height / rows;
+    const jitter = settings.jitter * jitterFactor;
 
     return {
-      x: (col + 0.5) * cellW + (random() - 0.5) * cellW * settings.jitter,
-      y: (row + 0.5) * cellH + (random() - 0.5) * cellH * settings.jitter,
+      x: (col + 0.5) * cellW + (random() - 0.5) * cellW * jitter,
+      y: (row + 0.5) * cellH + (random() - 0.5) * cellH * jitter,
     };
   }
 
-  function radiusOf(item) {
-    return Math.hypot(item.width, item.height) / 2;
+  // ----- LAYOUT FUNCTIONS -----
+  function diagonalFlowPosition(index, settings, random) {
+    const cols = Math.max(1, Math.ceil(Math.sqrt(settings.count * (settings.width / settings.height))));
+    const rows = Math.max(1, Math.ceil(settings.count / cols));
+    const col = index % cols;
+    const row = Math.floor(index / cols) % rows;
+    const cellW = settings.width / cols;
+    const cellH = settings.height / rows;
+    const offsetX = (row - rows / 2) * cellW * 0.15;
+    const offsetY = (col - cols / 2) * cellH * 0.15;
+    return {
+      x: (col + 0.5) * cellW + offsetX + (random() - 0.5) * cellW * 0.1,
+      y: (row + 0.5) * cellH + offsetY + (random() - 0.5) * cellH * 0.1,
+    };
   }
 
-  function scoreCandidate(point, placed, settings) {
-    if (!placed.length) return Infinity;
-    return placed.reduce((best, item) => {
-      return Math.min(best, toroidalDistance(point, item, settings) - radiusOf(item));
-    }, Infinity);
-  }
-
-  function blueNoisePosition(settings, random, item, placed) {
-    const sampleCount = placed.length < 4 ? 12 : 28;
-    let bestPoint = randomPosition(settings, random, item);
-    let bestScore = -Infinity;
-
-    for (let i = 0; i < sampleCount; i += 1) {
-      const point = randomPosition(settings, random, item);
-      const score = scoreCandidate(point, placed, settings);
-      if (score > bestScore) {
-        bestScore = score;
-        bestPoint = point;
-      }
-    }
-
-    return bestPoint;
-  }
-
-  function poissonDiskPosition(settings, random, item, placed, attempt) {
-    if (!placed.length || attempt % 17 === 0) return blueNoisePosition(settings, random, item, placed);
-
-    const base = placed[Math.floor(random() * placed.length)];
-    const baseRadius = radiusOf(base);
-    const itemRadius = radiusOf(item);
-    const minDistance = Math.max(settings.spacing, settings.minPoissonDistance || 0) + baseRadius + itemRadius;
-    const radius = minDistance * (1 + random());
-    const angle = random() * Math.PI * 2;
-
+  function radialPosition(settings, random, item) {
+    const radius = Math.min(settings.width, settings.height) * 0.4 * random();
+    const angle = random() * 2 * Math.PI;
+    const cx = settings.width / 2;
+    const cy = settings.height / 2;
     return keepInsideCanvas(
       {
-        x: base.x + Math.cos(angle) * radius,
-        y: base.y + Math.sin(angle) * radius,
+        x: cx + Math.cos(angle) * radius,
+        y: cy + Math.sin(angle) * radius,
       },
       settings,
-      item,
+      item
     );
   }
 
-  function positionForAttempt({ index, attempt, settings, random, item, placed }) {
-    if (settings.distribution === "grid" && attempt === 0) {
-      return keepInsideCanvas(gridPosition(index, settings, random), settings, item);
-    }
+  function stripePosition(index, settings, random) {
+    const stripeCount = Math.max(2, Math.round(Math.sqrt(settings.count)));
+    const stripeIndex = index % stripeCount;
+    const itemsPerStripe = Math.ceil(settings.count / stripeCount);
+    const posInStripe = Math.floor(index / stripeCount);
+    const stripeWidth = settings.width / stripeCount;
+    const x = (stripeIndex + 0.5) * stripeWidth + (random() - 0.5) * stripeWidth * 0.15;
+    const y = (posInStripe / itemsPerStripe) * settings.height + (random() - 0.5) * settings.height * 0.05;
+    return { x, y };
+  }
 
-    if (settings.distribution === "blue-noise") {
-      return blueNoisePosition(settings, random, item, placed);
-    }
+  function tossedPosition(settings, random, item) {
+    const baseX = random() * settings.width;
+    const baseY = random() * settings.height;
+    const offsetRange = Math.min(settings.width, settings.height) * 0.08;
+    const x = baseX + (random() - 0.5) * offsetRange;
+    const y = baseY + (random() - 0.5) * offsetRange;
+    return keepInsideCanvas({ x, y }, settings, item);
+  }
 
-    if (settings.distribution === "poisson-disk") {
-      return poissonDiskPosition(settings, random, item, placed, attempt);
-    }
-
+  function scatteredPosition(settings, random, item) {
     return randomPosition(settings, random, item);
   }
 
+  function allOverPosition(index, settings, random) {
+    const cols = Math.max(1, Math.ceil(Math.sqrt(settings.count * (settings.width / settings.height))));
+    const rows = Math.max(1, Math.ceil(settings.count / cols));
+    const col = index % cols;
+    const row = Math.floor(index / cols) % rows;
+    const cellW = settings.width / cols;
+    const cellH = settings.height / rows;
+    const jitterAmount = 0.8;
+    const x = (col + 0.5) * cellW + (random() - 0.5) * cellW * jitterAmount;
+    const y = (row + 0.5) * cellH + (random() - 0.5) * cellH * jitterAmount;
+    return { x, y };
+  }
+
+  // ----- POSITION FOR ATTEMPT (hanya layout) -----
+  function positionForAttempt({ index, attempt, settings, random, item, placed, layout = 'default' }) {
+    // Layout default = acak murni
+    if (layout === 'default') {
+      return randomPosition(settings, random, item);
+    }
+
+    switch (layout) {
+      case 'neat-grid':
+        return keepInsideCanvas(gridPosition(index, settings, random, 0.05), settings, item);
+      case 'diagonal-flow':
+        return keepInsideCanvas(diagonalFlowPosition(index, settings, random), settings, item);
+      case 'radial-center':
+        return keepInsideCanvas(radialPosition(settings, random, item), settings, item);
+      case 'tossed':
+        return keepInsideCanvas(tossedPosition(settings, random, item), settings, item);
+      case 'scattered':
+        return keepInsideCanvas(scatteredPosition(settings, random, item), settings, item);
+      case 'stripe':
+        return keepInsideCanvas(stripePosition(index, settings, random), settings, item);
+      case 'all-over':
+        return keepInsideCanvas(allOverPosition(index, settings, random), settings, item);
+      default:
+        return randomPosition(settings, random, item);
+    }
+  }
+
+  // Ekspos ke global
   global.PatternDistribution = {
-    blueNoisePosition,
-    gridPosition,
-    poissonDiskPosition,
     positionForAttempt,
     randomPosition,
-    toroidalDistance,
+    // (fungsi lain tidak diekspos karena tidak dibutuhkan di luar)
   };
 })(window);

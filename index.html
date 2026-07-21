@@ -6,6 +6,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Seamless Pattern Generator</title>
   <link rel="stylesheet" href="./styles.css" />
+  <!-- help-texts.js akan dimuat sebelum app.js -->
+  <script src="./help-texts.js" defer></script>
 </head>
 
 <body>
@@ -20,421 +22,251 @@
           </div>
         </div>
 
-        <!-- ===== SECTION: UPLOAD ===== -->
-        <div class="section">
-          <div class="section-header" data-section="upload">
-            <h3>📂 Upload Files</h3>
-            <button type="button" class="collapse-btn" data-target="upload">−</button>
-          </div>
-          <div class="section-body" id="section-upload">
-            <label class="upload-zone" for="svgFile">
-              <input id="svgFile" type="file" accept=".svg,image/svg+xml" multiple />
-              <span class="upload-icon">+</span>
-              <strong id="fileName">Pilih file SVG (bisa banyak)</strong>
-              <small>Objek akan dihitung otomatis ketika melewati batas tile.</small>
+        <label class="upload-zone" for="svgFile">
+          <input id="svgFile" type="file" accept=".svg,image/svg+xml" multiple />
+          <span class="upload-icon">+</span>
+          <strong id="fileName">Pilih file SVG (bisa banyak)</strong>
+          <small>Objek akan dihitung otomatis ketika melewati batas tile.</small>
+        </label>
+
+        <!-- Tombol manajemen file -->
+        <div class="actions" style="margin-top: 6px; gap: 6px;">
+          <button id="checkAllBtn" type="button" class="secondary" style="flex:1;">✅ Check All</button>
+          <button id="uncheckAllBtn" type="button" class="secondary" style="flex:1;">⬜ Uncheck All</button>
+          <button id="resetFilesBtn" type="button" class="danger" style="flex:1;">🗑 Reset</button>
+        </div>
+
+        <div class="control-grid">
+          <label>
+            <span data-help="tileWidth">Lebar canvas</span>
+            <input id="tileWidth" type="number" min="640" max="7680" step="16" value="3840" />
+          </label>
+          <label>
+            <span data-help="tileHeight">Tinggi canvas</span>
+            <input id="tileHeight" type="number" min="360" max="4320" step="9" value="2160" />
+          </label>
+          <label>
+            <span data-help="count">Jumlah objek</span>
+            <input id="count" type="number" min="1" max="160" step="1" value="28" />
+          </label>
+          <label>
+            <span data-help="seed">Seed</span>
+            <input id="seed" type="number" min="1" max="999999" step="1" value="1842" />
+          </label>
+        </div>
+
+        <div class="slider-list">
+          <label>
+            <span data-help="baseScale">Skala dasar <output id="baseScaleValue">26%</output></span>
+            <input id="baseScale" type="range" min="5" max="80" value="26" />
+          </label>
+          <label>
+            <span data-help="scaleVariance">Variasi ukuran <output id="scaleVarianceValue">42%</output></span>
+            <input id="scaleVariance" type="range" min="0" max="100" value="42" />
+          </label>
+          <label>
+            <span data-help="rotation">Rotasi acak <output id="rotationValue">180 deg</output></span>
+            <input id="rotation" type="range" min="0" max="180" value="180" />
+          </label>
+          <label>
+            <span data-help="spacing">Jarak minimum <output id="spacingValue">44 px</output></span>
+            <input id="spacing" type="range" min="0" max="180" value="44" />
+          </label>
+          <label>
+            <span data-help="jitter">Jitter grid <output id="jitterValue">70%</output></span>
+            <input id="jitter" type="range" min="0" max="100" value="70" />
+          </label>
+          <label>
+            <span data-help="repeatCount">Jumlah repeat <output id="repeatCountValue">2</output></span>
+            <input id="repeatCount" type="range" min="1" max="5" value="2" />
+          </label>
+        </div>
+
+        <div class="option-row">
+          <fieldset class="distribution-panel">
+            <legend>Distribution</legend>
+            <label style="grid-column: span 2; display: flex; gap: 8px; align-items: center; margin-top: 4px;">
+              <span style="font-weight:600;" data-help="layout">Layout</span>
+              <select id="layoutSelect" style="flex:1; padding:6px; border-radius:6px; border:1px solid var(--line);">
+                <option value="neat-grid">Neat Grid</option>
+                <option value="diagonal-flow">Diagonal Flow</option>
+                <option value="radial-center">Radial from Center</option>
+                <option value="tossed">Tossed</option>
+                <option value="scattered">Scattered</option>
+                <option value="stripe">Stripe</option>
+                <option value="all-over">All-Over</option>
+              </select>
             </label>
-            <div class="actions" style="margin-top: 6px; gap: 6px;">
-              <button id="checkAllBtn" type="button" class="secondary" style="flex:1;">✅ Check All</button>
-              <button id="uncheckAllBtn" type="button" class="secondary" style="flex:1;">⬜ Uncheck All</button>
-              <button id="resetFilesBtn" type="button" class="danger" style="flex:1;">🗑 Reset</button>
-            </div>
-          </div>
-        </div>
-
-        <!-- ===== SECTION: CANVAS & SEED ===== -->
-<div class="section">
-  <div class="section-header" data-section="canvas">
-    <h3>📐 Canvas & Seed</h3>
-    <button type="button" class="collapse-btn" data-target="canvas">−</button>
-  </div>
-  <div class="section-body" id="section-canvas">
-    <!-- Aspect Ratio Selector -->
-    <div class="aspect-ratio-selector">
-      <span style="font-size:13px; color:var(--muted); font-weight:500;">Aspect Ratio:</span>
-      <label class="switch">
-        <input type="radio" name="aspectRatio" value="16:9"  />
-        <span>16:9</span>
-      </label>
-      <label class="switch">
-        <input type="radio" name="aspectRatio" value="1:1" checked />
-        <span>1:1</span>
-      </label>
-      <label class="switch">
-        <input type="radio" name="aspectRatio" value="4:3" />
-        <span>4:3</span>
-      </label>
-      <label class="switch">
-        <input type="radio" name="aspectRatio" value="3:2" />
-        <span>3:2</span>
-      </label>
-      <label class="switch">
-        <input type="radio" name="aspectRatio" value="21:9" />
-        <span>21:9</span>
-      </label>
-      <button type="button" id="applyAspectBtn" class="primary" style="padding:2px 14px; min-height:0; font-size:12px;">Apply</button>
-    </div>
-
-    <div class="control-grid">
-      <label>
-        <span>Lebar canvas</span>
-        <input id="tileWidth" type="number" min="640" max="7680" step="16" value="3840" />
-      </label>
-      <label>
-        <span>Tinggi canvas</span>
-        <input id="tileHeight" type="number" min="360" max="7680" step="16" value="2160" />
-      </label>
-      <label>
-        <span>Jumlah objek</span>
-        <input id="count" type="number" min="1" max="160" step="1" value="28" />
-      </label>
-      <label>
-        <span>Seed</span>
-        <input id="seed" type="number" min="1" max="999999" step="1" value="1842" />
-      </label>
-    </div>
-  </div>
-</div>
-        <!-- ===== SECTION: SLIDER ===== -->
-        <div class="section">
-          <div class="section-header" data-section="slider">
-            <h3>🎚️ Slider Controls</h3>
-            <button type="button" class="collapse-btn" data-target="slider">−</button>
-          </div>
-          <div class="section-body" id="section-slider">
-            <div class="slider-list">
-              <label>
-                <span>Skala dasar <output id="baseScaleValue">26%</output></span>
-                <input id="baseScale" type="range" min="5" max="80" value="26" />
-              </label>
-              <label>
-                <span>Variasi ukuran <output id="scaleVarianceValue">42%</output></span>
-                <input id="scaleVariance" type="range" min="0" max="100" value="42" />
-              </label>
-              <label>
-                <span>Rotasi acak <output id="rotationValue">180 deg</output></span>
-                <input id="rotation" type="range" min="0" max="180" value="180" />
-              </label>
-              <label>
-                <span>Jarak minimum <output id="spacingValue">44 px</output></span>
-                <input id="spacing" type="range" min="0" max="180" value="44" />
-              </label>
-              <label>
-                <span>Jitter grid <output id="jitterValue">70%</output></span>
-                <input id="jitter" type="range" min="0" max="100" value="70" />
-              </label>
-              <label>
-                <span>Jumlah repeat <output id="repeatCountValue">2</output></span>
-                <input id="repeatCount" type="range" min="1" max="5" value="2" />
-              </label>
-            </div>
-          </div>
-        </div>
-
-        <!-- ===== SECTION: DISTRIBUTION ===== -->
-        <div class="section">
-          <div class="section-header" data-section="distribution">
-            <h3>📊 Distribution</h3>
-            <button type="button" class="collapse-btn" data-target="distribution">−</button>
-          </div>
-          <div class="section-body" id="section-distribution">
-            <fieldset class="distribution-panel">
-              <legend>Distribution</legend>
-              <label class="switch">
-                <input type="radio" name="distribution" value="grid" />
-                <span>Grid</span>
-              </label>
-              <label class="switch">
-                <input type="radio" name="distribution" value="random" checked />
-                <span>Random</span>
-              </label>
-              <label class="switch">
-                <input type="radio" name="distribution" value="blue-noise" />
-                <span>Blue Noise</span>
-              </label>
-              <label class="switch">
-                <input type="radio" name="distribution" value="poisson-disk" />
-                <span>Poisson Disk</span>
-              </label>
-            </fieldset>
+          </fieldset>
+          <fieldset class="distribution-panel">
+            <legend>Izin Distribusi</legend>
             <label class="switch">
               <input id="randomMode" type="checkbox" checked />
-              <span>Random pattern</span>
+              <span data-help="randomMode">Random pattern</span>
             </label>
             <label class="switch">
               <input id="allowEdgeCuts" type="checkbox" checked />
-              <span>Izinkan potong tepi</span>
+              <span data-help="allowEdgeCuts">Izinkan potong tepi</span>
             </label>
             <label class="switch">
               <input id="showTile" type="checkbox" checked />
-              <span>Tampilkan batas tile</span>
+              <span data-help="showTile">Tampilkan batas tile</span>
+            </label>
+          </fieldset>	
+        </div>
+
+        <fieldset class="bg-panel">
+          <legend>Background</legend>
+          <label class="switch">
+            <input type="radio" name="bgMode" value="transparent" checked />
+            <span data-help="bgMode">Transparan</span>
+          </label>
+          <label class="switch bg-color-switch">
+            <input type="radio" name="bgMode" value="color" />
+            <span data-help="bgMode">Warna</span>
+            <input id="bgColorPicker" type="color" value="#ffffff" data-help="bgColorPicker" />
+          </label>
+        </fieldset>
+
+        <fieldset class="color-panel">
+          <legend>Pewarnaan Objek</legend>
+          <label class="switch">
+            <input type="radio" name="colorMode" value="original" checked />
+            <span data-help="colorMode">Warna asli SVG</span>
+          </label>
+          <label class="switch bg-color-switch">
+            <input type="radio" name="colorMode" value="single" />
+            <span data-help="colorMode">Satu warna</span>
+            <input id="singleColorPicker" type="color" value="#0e7c66" data-help="singleColorPicker" />
+          </label>
+          <label class="switch">
+            <input type="radio" name="colorMode" value="multi" />
+            <span data-help="colorMode">Warna-warni</span>
+          </label>
+          <div class="multi-color-row">
+            <input id="multiColorHex" type="text" placeholder="#ff0000, #00c2ff, #ffd23f" data-help="multiColorHex" />
+            <button id="randomColorBtn" type="button" title="Isi otomatis dengan warna acak" data-help="randomColorBtn">🎲 Random</button>
+          </div>
+          <small>Pisahkan tiap kode hex dengan koma. Dipakai saat mode "Warna-warni" aktif.</small>
+        </fieldset>
+
+        <div class="actions">
+          <button id="generateBtn" class="primary" type="button" data-help="generateBtn">Generate</button>
+          <button id="autoLayoutBtn" type="button" data-help="autoLayoutBtn">Auto Layout</button>
+        </div>
+
+        <div class="actions">
+          <button id="sampleBtn" type="button" data-help="sampleBtn">Contoh SVG</button>
+          <button id="shuffleBtn" type="button" data-help="shuffleBtn">Acak Seed</button>
+        </div>
+
+        <div class="actions">
+          <button id="downloadPngBtn" type="button" data-help="downloadPngBtn">Download PNG 4K</button>
+          <button id="downloadSvgBtn" type="button" data-help="downloadSvgBtn">Download SVG 4K</button>
+        </div>
+
+        <section class="batch-panel" aria-label="Batch download">
+          <h2>Batch Download</h2>
+          <div class="control-grid">
+            <label>
+              <span data-help="batchCount">Jumlah gambar</span>
+              <input id="batchCount" type="number" min="1" max="500" step="1" value="5" />
+            </label>
+            <label>
+              <span data-help="batchFormat">Format</span>
+              <select id="batchFormat">
+                <option value="png">PNG</option>
+                <option value="svg">SVG</option>
+                <option value="both" selected>SVG + PNG</option>
+              </select>
             </label>
           </div>
-        </div>
 
-        <!-- ===== SECTION: BACKGROUND ===== -->
-        <div class="section">
-          <div class="section-header" data-section="background">
-            <h3>🎨 Background</h3>
-            <button type="button" class="collapse-btn" data-target="background">−</button>
-          </div>
-          <div class="section-body" id="section-background">
-            <fieldset class="bg-panel">
-              <legend>Background</legend>
+          <!-- Mode Batch -->
+          <div class="control-grid" style="margin-top: 6px;">
+            <fieldset class="batch-mode-group" style="border:none;padding:0;display:flex;gap:12px;">
+              <legend style="font-weight:bold;font-size:0.9em;">Mode Batch (JSON)</legend>
               <label class="switch">
-                <input type="radio" name="bgMode" value="transparent" checked />
-                <span>Transparan</span>
+                <input type="radio" name="batchMode" value="checked" checked />
+                <span data-help="batchMode">Checked (aktif)</span>
               </label>
-              <label class="switch bg-color-switch">
-                <input type="radio" name="bgMode" value="color" />
-                <span>Warna</span>
-                <input id="bgColorPicker" type="color" value="#ffffff" />
+              <label class="switch">
+                <input type="radio" name="batchMode" value="all" />
+                <span data-help="batchMode">All files</span>
+              </label>
+              <label class="switch">
+                <input type="radio" name="batchMode" value="original" />
+                <span data-help="batchMode">Original (combined)</span>
+              </label>
+              <label>
+                <span data-help="batchOutputMode">Output mode</span>
+                <select id="batchOutputMode">
+                  <option value="zip">Zip archive</option>
+                  <option value="individual">Individual files</option>
+                </select>
               </label>
             </fieldset>
           </div>
-        </div>
 
-        <!-- ===== SECTION: COLOR ===== -->
-        <div class="section">
-          <div class="section-header" data-section="color">
-            <h3>🌈 Pewarnaan Objek</h3>
-            <button type="button" class="collapse-btn" data-target="color">−</button>
+          <div class="actions" style="margin-top: 6px; gap: 6px; flex-wrap: wrap;">
+            <button id="batchDownloadCountBtn" type="button" class="primary" style="flex:1;" data-help="batchDownloadCountBtn">📦 Batch by Count</button>
+            <button id="batchDownloadJsonBtn" type="button" class="primary" style="flex:1;" data-help="batchDownloadJsonBtn">📦 Batch by JSON</button>
           </div>
-          <div class="section-body" id="section-color">
-            <fieldset class="color-panel">
-              <legend>Pewarnaan Objek</legend>
-              <label class="switch">
-                <input type="radio" name="colorMode" value="original" checked />
-                <span>Warna asli SVG</span>
-              </label>
-              <label class="switch bg-color-switch">
-                <input type="radio" name="colorMode" value="single" />
-                <span>Satu warna</span>
-                <input id="singleColorPicker" type="color" value="#0e7c66" />
-              </label>
-              <label class="switch">
-                <input type="radio" name="colorMode" value="multi" />
-                <span>Warna-warni</span>
-              </label>
-              <div class="multi-color-row">
-                <input id="multiColorHex" type="text" placeholder="#ff0000, #00c2ff, #ffd23f" />
-                <button id="randomColorBtn" type="button" title="Isi otomatis dengan warna acak">🎲 Random</button>
-              </div>
-              <small>Pisahkan tiap kode hex dengan koma. Dipakai saat mode "Warna-warni" aktif.</small>
-            </fieldset>
-          </div>
-        </div>
 
-        <!-- ===== SECTION: ACTIONS ===== -->
-        <div class="section">
-          <div class="section-header" data-section="actions">
-            <h3>⚡ Actions</h3>
-            <button type="button" class="collapse-btn" data-target="actions">−</button>
+          <div class="actions" style="margin-top: 6px; gap: 6px; flex-wrap: wrap;">
+            <button id="exportJsonBtn" type="button" class="secondary" style="flex:1;" data-help="exportJsonBtn">📥 Download Settings (JSON)</button>
+            <label class="upload-zone" style="flex:1; padding:4px 8px; background:#eee; border-radius:4px; cursor:pointer; text-align:center; margin:0;" data-help="importJsonInput">
+              <input id="importJsonInput" type="file" accept=".json" style="display:none;" />
+              📤 Load Settings (JSON)
+            </label>
           </div>
-          <div class="section-body" id="section-actions">
-            <div class="actions">
-              <button id="generateBtn" class="primary" type="button">Generate</button>
-              <button id="autoLayoutBtn" type="button">Auto Layout</button>
+
+          <p id="batchStatus" class="batch-status"></p>
+        </section>
+
+        <section class="stats-panel" aria-label="Pattern Statistics">
+          <div class="stats-heading">
+            <h2>Pattern Statistics</h2>
+            <span id="coverageLabel" data-help="coverageLabel">0%</span>
+          </div>
+          <div class="coverage-track" aria-hidden="true">
+            <span id="coverageBar" class="coverage-bar"></span>
+          </div>
+          <dl class="stats-list">
+            <div>
+              <dt>Coverage</dt>
+              <dd id="statCoverage">0%</dd>
             </div>
-            <div class="actions">
-              <button id="sampleBtn" type="button">Contoh SVG</button>
-              <button id="shuffleBtn" type="button">Acak Seed</button>
+            <div>
+              <dt>Jumlah Object</dt>
+              <dd id="statObjectCount">0</dd>
             </div>
-          </div>
-        </div>
-
-        <!-- ===== SECTION: DOWNLOAD ===== -->
-        <div class="section">
-          <div class="section-header" data-section="download">
-            <h3>⬇️ Download</h3>
-            <button type="button" class="collapse-btn" data-target="download">−</button>
-          </div>
-          <div class="section-body" id="section-download">
-            <div class="actions">
-              <button id="downloadPngBtn" type="button">Download PNG 4K</button>
-              <button id="downloadSvgBtn" type="button">Download SVG 4K</button>
-              <button id="downloadJpgBtn" type="button" class="download-jpg-btn">Download JPG (300 DPI)</button>
+            <div>
+              <dt>Average Distance</dt>
+              <dd id="statAverageDistance">0 px</dd>
             </div>
-          </div>
-        </div>
-
-        <!-- ===== SECTION: BATCH ===== -->
-        <div class="section">
-          <div class="section-header" data-section="batch">
-            <h3>📦 Batch Download</h3>
-            <button type="button" class="collapse-btn" data-target="batch">−</button>
-          </div>
-          <div class="section-body" id="section-batch">
-            <section class="batch-panel" aria-label="Batch download">
-              <div class="control-grid">
-                <label>
-                  <span>Jumlah gambar</span>
-                  <input id="batchCount" type="number" min="1" max="500" step="1" value="5" />
-                </label>
-                <label>
-                  <span>Format</span>
-                  <select id="batchFormat">
-                    <option value="png">PNG</option>
-                    <option value="svg">SVG</option>
-                    <option value="jpg"selected >JPG</option>
-                    <option value="both">SVG + PNG</option>
-                  </select>
-                </label>
-              </div>
-
-              <!-- JPG Settings -->
-              <div id="jpgSettings" class="jpg-settings">
-                <div class="jpg-settings-grid">
-                  <label>
-                    <span>DPI <small>(cetak)</small></span>
-                    <input id="jpgDpi" type="number" min="72" max="1200" step="1" value="300" />
-                  </label>
-                  <label>
-                    <span>Lebar cetak (inch)</span>
-                    <input id="printWidth" type="number" min="1" max="100" step="0.5" value="6" />
-                  </label>
-                  <label>
-                    <span>Tinggi cetak (inch)</span>
-                    <input id="printHeight" type="number" min="1" max="100" step="0.5" value="6" />
-                  </label>
-                </div>
-
-                <!-- UPDATE: ORIENTASI -->
-                <div class="jpg-settings-orientation">
-                  <span>Orientasi:</span>
-                  <label class="switch">
-                    <input type="radio" name="jpgOrientation" value="portrait"  />
-                    <span>Potrait</span>
-                  </label>
-                  <label class="switch">
-                    <input type="radio" name="jpgOrientation" value="landscape" />
-                    <span>Landscape</span>
-                  </label>
-                  <label class="switch">
-                    <input type="radio" name="jpgOrientation" value="square" checked />
-                    <span>Square</span>
-                  </label>
-                  <button type="button" id="applyOrientationBtn" class="primary" style="padding: 2px 12px; min-height: 0; font-size: 12px;">Apply</button>
-                </div>
-
-                <div class="jpg-settings-footer">
-                  <span>Dimensi hasil: <strong id="pixelDimensions">1200 × 1800</strong> piksel</span>
-                  <span>
-                    Kualitas JPG:
-                    <select id="jpgQuality" class="jpg-quality-select">
-                      <option value="0.85">85% (baik)</option>
-                      <option value="0.92" selected>92% (sangat baik)</option>
-                      <option value="0.98">98% (maksimal)</option>
-                    </select>
-                  </span>
-                </div>
-
-                <div class="preset-sizes">
-                  <span>Preset:</span>
-                  <button type="button" class="preset-size-btn" data-w="4" data-h="6">4×6"</button>
-                  <button type="button" class="preset-size-btn" data-w="5" data-h="7">5×7"</button>
-                  <button type="button" class="preset-size-btn" data-w="8.27" data-h="11.69">A4</button>
-                  <button type="button" class="preset-size-btn" data-w="11.69" data-h="16.54">A3</button>
-                  <button type="button" class="preset-size-btn" data-w="16.54" data-h="23.39">A2</button>
-                </div>
-              </div>
-
-              <!-- Mode Batch -->
-              <div class="control-grid" style="margin-top: 6px;">
-                <fieldset class="batch-mode-group" style="border:none;padding:0;display:flex;gap:12px;flex-wrap:wrap;">
-                  <legend style="font-weight:bold;font-size:0.9em;">Mode Batch (JSON)</legend>
-                  <label class="switch">
-                    <input type="radio" name="batchMode" value="checked" checked />
-                    <span>Checked (aktif)</span>
-                  </label>
-                  <label class="switch">
-                    <input type="radio" name="batchMode" value="all" />
-                    <span>All files</span>
-                  </label>
-                  <label class="switch">
-                    <input type="radio" name="batchMode" value="original" />
-                    <span>Original (combined)</span>
-                  </label>
-                  <label>
-                    <span>Output mode</span>
-                    <select id="batchOutputMode">
-                      <option value="zip">Zip archive</option>
-                      <option value="individual">Individual files</option>
-                    </select>
-                  </label>
-                </fieldset>
-              </div>
-
-              <div class="actions" style="margin-top: 6px; gap: 6px; flex-wrap: wrap;">
-                <button id="batchDownloadCountBtn" type="button" class="primary" style="flex:1;">📦 Batch by Count</button>
-                <button id="batchDownloadJsonBtn" type="button" class="primary" style="flex:1;">📦 Batch by JSON</button>
-              </div>
-
-              <div class="actions" style="margin-top: 6px; gap: 6px; flex-wrap: wrap;">
-                <button id="exportJsonBtn" type="button" class="secondary" style="flex:1;">📥 Download Settings (JSON)</button>
-                <label class="upload-zone" style="flex:1; padding:4px 8px; background:#eee; border-radius:4px; cursor:pointer; text-align:center; margin:0;">
-                  <input id="importJsonInput" type="file" accept=".json" style="display:none;" />
-                  📤 Load Settings (JSON)
-                </label>
-              </div>
-
-              <p id="batchStatus" class="batch-status"></p>
-            </section>
-          </div>
-        </div>
-
-        <!-- ===== SECTION: STATISTICS ===== -->
-        <div class="section">
-          <div class="section-header" data-section="stats">
-            <h3>📊 Pattern Statistics</h3>
-            <button type="button" class="collapse-btn" data-target="stats">−</button>
-          </div>
-          <div class="section-body" id="section-stats">
-            <section class="stats-panel" aria-label="Pattern Statistics">
-              <div class="stats-heading">
-                <h2>Pattern Statistics</h2>
-                <span id="coverageLabel">0%</span>
-              </div>
-              <div class="coverage-track" aria-hidden="true">
-                <span id="coverageBar" class="coverage-bar"></span>
-              </div>
-              <dl class="stats-list">
-                <div>
-                  <dt>Coverage</dt>
-                  <dd id="statCoverage">0%</dd>
-                </div>
-                <div>
-                  <dt>Jumlah Object</dt>
-                  <dd id="statObjectCount">0</dd>
-                </div>
-                <div>
-                  <dt>Average Distance</dt>
-                  <dd id="statAverageDistance">0 px</dd>
-                </div>
-                <div>
-                  <dt>Duplicate Edge Object</dt>
-                  <dd id="statDuplicateEdge">0</dd>
-                </div>
-                <div>
-                  <dt>Largest Object</dt>
-                  <dd id="statLargest">0 px2</dd>
-                </div>
-                <div>
-                  <dt>Smallest Object</dt>
-                  <dd id="statSmallest">0 px2</dd>
-                </div>
-                <div>
-                  <dt>Canvas Size</dt>
-                  <dd id="statCanvasSize">3840 x 2160</dd>
-                </div>
-              </dl>
-            </section>
-          </div>
-        </div>
+            <div>
+              <dt>Duplicate Edge Object</dt>
+              <dd id="statDuplicateEdge">0</dd>
+            </div>
+            <div>
+              <dt>Largest Object</dt>
+              <dd id="statLargest">0 px2</dd>
+            </div>
+            <div>
+              <dt>Smallest Object</dt>
+              <dd id="statSmallest">0 px2</dd>
+            </div>
+            <div>
+              <dt>Canvas Size</dt>
+              <dd id="statCanvasSize">3840 x 2160</dd>
+            </div>
+          </dl>
+        </section>
 
         <div class="math-note">
           <strong>Rumus wrap</strong>
-          <span>Objek diuji pada offset -W, 0, +W dan -H, 0, +H. Collision memakai SAT supaya ukuran, rotasi, dan scale
-            ikut dihitung.</span>
+          <span>Objek diuji pada offset -W, 0, +W dan -H, 0, +H. Collision memakai SAT supaya ukuran, rotasi, dan scale ikut dihitung.</span>
         </div>
       </aside>
 
@@ -469,6 +301,8 @@
   <script src="./collision.js"></script>
   <script src="./distribution.js"></script>
   <script src="./stats.js"></script>
+  <!-- help-texts.js dimuat sebelum app.js -->
+  <script src="./help-texts.js"></script>
   <script src="./app.js"></script>
 </body>
 

@@ -16,8 +16,6 @@ const els = {
   rotation: document.querySelector("#rotation"),
   spacing: document.querySelector("#spacing"),
   jitter: document.querySelector("#jitter"),
-  distribution: document.querySelectorAll('input[name="distribution"]'),
-  randomMode: document.querySelector("#randomMode"),
   allowEdgeCuts: document.querySelector("#allowEdgeCuts"),
   showTile: document.querySelector("#showTile"),
   bgMode: document.querySelectorAll('input[name="bgMode"]'),
@@ -32,7 +30,6 @@ const els = {
   shuffleBtn: document.querySelector("#shuffleBtn"),
   downloadPngBtn: document.querySelector("#downloadPngBtn"),
   downloadSvgBtn: document.querySelector("#downloadSvgBtn"),
-  downloadJpgBtn: document.querySelector("#downloadJpgBtn"),
   batchCount: document.querySelector("#batchCount"),
   batchFormat: document.querySelector("#batchFormat"),
   batchOutputMode: document.querySelector("#batchOutputMode"),
@@ -66,84 +63,14 @@ const els = {
   uncheckAllBtn: document.querySelector("#uncheckAllBtn"),
   resetFilesBtn: document.querySelector("#resetFilesBtn"),
   batchMode: document.querySelectorAll('input[name="batchMode"]'),
-  // JPG elements
-  jpgSettings: document.querySelector("#jpgSettings"),
-  jpgDpi: document.querySelector("#jpgDpi"),
-  printWidth: document.querySelector("#printWidth"),
-  printHeight: document.querySelector("#printHeight"),
-  jpgQuality: document.querySelector("#jpgQuality"),
-  pixelDimensions: document.querySelector("#pixelDimensions"),
+  layoutSelect: document.querySelector("#layoutSelect"),
 };
 
-// ============================================================
-// CONSTANTS
-// ============================================================
-
+const ctx = els.canvas.getContext("2d");
 const CANVAS_RATIO = 16 / 9;
 const MAX_PLACEMENT_ATTEMPTS = 300;
 const MAX_SHRINK_STEPS = 6;
 const CLIENT_ZIP_URL = "https://cdn.jsdelivr.net/npm/client-zip@2.5.0/index.js";
-
-// Resolusi 4K
-const RESOLUTIONS = {
-  '4K': {
-    width: 3840,
-    height: 2160,
-    label: '4K (3840×2160)'
-  },
-  '4K_SQUARE': {
-    width: 3840,
-    height: 3840,
-    label: '4K Square (3840×3840)'
-  }
-};
-
-// ============================================================
-// ASPECT RATIO
-// ============================================================
-
-
-function applyAspectRatio() {
-  const selected = document.querySelector('input[name="aspectRatio"]:checked');
-  if (!selected) return;
-  
-  const widthInput = document.getElementById('tileWidth');
-  const heightInput = document.getElementById('tileHeight');
-  
-  // Base width 4K
-  const baseWidth = 3840;
-  let targetHeight;
-  
-  switch (selected.value) {
-    case '16:9':
-      targetHeight = Math.round(baseWidth / (16/9)); // 2160
-      break;
-    case '1:1':
-      targetHeight = baseWidth; // 3840
-      break;
-    case '4:3':
-      targetHeight = Math.round(baseWidth / (4/3)); // 2880
-      break;
-    case '3:2':
-      targetHeight = Math.round(baseWidth / (3/2)); // 2560
-      break;
-    case '21:9':
-      targetHeight = Math.round(baseWidth / (21/9)); // 1646
-      break;
-    default:
-      targetHeight = Math.round(baseWidth / (16/9));
-  }
-  
-  widthInput.value = baseWidth;
-  heightInput.value = targetHeight;
-  
-  // Trigger update
-  syncHeightToWidth();
-  updateExportLabels();
-  drawPattern().catch(console.error);
-}
-
-const ctx = els.canvas.getContext("2d");
 
 const state = {
   sources: [],
@@ -205,22 +132,10 @@ function checkedSources() {
   return state.sources.filter((source) => source.checked);
 }
 
-// ---------- JPG UTILITY ----------
-function updatePixelDimensions() {
-  const dpi = parseInt(els.jpgDpi.value) || 300;
-  const width = parseFloat(els.printWidth.value) || 6;
-  const height = parseFloat(els.printHeight.value) || 6;
-  const pixelW = Math.round(width * dpi);
-  const pixelH = Math.round(height * dpi);
-  els.pixelDimensions.textContent = `${pixelW} × ${pixelH}`;
-}
-
 // ---------- SETTINGS ----------
 function getSettings() {
   const width = Math.round(numberFrom(els.tileWidth));
-  const height = Math.round(numberFrom(els.tileHeight));
-  
-  const distribution = document.querySelector('input[name="distribution"]:checked')?.value ?? "random";
+  const height = Math.round(width / CANVAS_RATIO);
   const bgMode = document.querySelector('input[name="bgMode"]:checked')?.value ?? "transparent";
   const colorMode = document.querySelector('input[name="colorMode"]:checked')?.value ?? "original";
 
@@ -235,9 +150,8 @@ function getSettings() {
     spacing: numberFrom(els.spacing),
     minPoissonDistance: numberFrom(els.spacing),
     jitter: numberFrom(els.jitter) / 100,
-    distribution,
-    randomMode: els.randomMode.checked,
     allowEdgeCuts: els.allowEdgeCuts.checked,
+    layout: els.layoutSelect.value,
     background: {
       mode: bgMode,
       color: els.bgColorPicker.value,
@@ -264,12 +178,7 @@ function updateRepeatLabel() {
 }
 
 function exportSizeLabel(settings = getSettings()) {
-  const is4K = settings.width === 3840 && settings.height === 2160;
-  const is4KSquare = settings.width === 3840 && settings.height === 3840;
-  
-  if (is4K) return "4K";
-  if (is4KSquare) return "4K-Square";
-  return `${settings.width}x${settings.height}`;
+  return settings.width === 3840 && settings.height === 2160 ? "4K" : `${settings.width}x${settings.height}`;
 }
 
 function exportFileLabel(settings = getSettings()) {
@@ -280,16 +189,6 @@ function updateExportLabels() {
   const label = exportSizeLabel();
   els.downloadPngBtn.textContent = `Download PNG ${label}`;
   els.downloadSvgBtn.textContent = `Download SVG ${label}`;
-}
-
-function selectedDistributionInput(value) {
-  return Array.from(els.distribution).find((input) => input.value === value);
-}
-
-function setDistribution(value) {
-  const input = selectedDistributionInput(value);
-  if (input) input.checked = true;
-  els.randomMode.checked = value !== "grid";
 }
 
 function setRadioValue(nodeList, value) {
@@ -447,6 +346,7 @@ function candidatePositionForAttempt(index, attempt, settings, random, candidate
     random,
     item: candidate,
     placed,
+    layout: settings.layout,
   });
 }
 
@@ -532,7 +432,7 @@ function applyAutoLayout() {
   els.scaleVariance.value = layout.variance;
   els.spacing.value = layout.spacing;
   els.jitter.value = layout.jitter;
-  setDistribution("blue-noise");
+  els.layoutSelect.value = "scattered"; // set layout default ke scattered
   updateLabels();
   drawPattern().catch(console.error);
 }
@@ -627,19 +527,7 @@ function updateStatsPanel(settings) {
   els.statDuplicateEdge.textContent = `${stats.duplicateEdgeObjects}`;
   els.statLargest.textContent = `${Math.round(stats.largestObject)} px2`;
   els.statSmallest.textContent = `${Math.round(stats.smallestObject)} px2`;
-  
-  // Update canvas size dengan aspect ratio label
-  const ratio = settings.width / settings.height;
-  let aspectLabel = '';
-  if (Math.abs(ratio - 16/9) < 0.01) aspectLabel = '16:9';
-  else if (Math.abs(ratio - 1) < 0.01) aspectLabel = '1:1';
-  else if (Math.abs(ratio - 4/3) < 0.01) aspectLabel = '4:3';
-  else if (Math.abs(ratio - 3/2) < 0.01) aspectLabel = '3:2';
-  else if (Math.abs(ratio - 21/9) < 0.01) aspectLabel = '21:9';
-  else aspectLabel = ratio.toFixed(2);
-  
-  els.statCanvasSize.textContent = `${settings.width} × ${settings.height} (${aspectLabel})`;
-  
+  els.statCanvasSize.textContent = stats.canvasSize;
   els.coverageBar.style.width = `${progressWidth}%`;
   els.coverageBar.classList.remove("coverage-good", "coverage-warn", "coverage-danger");
 
@@ -672,7 +560,7 @@ async function drawPattern() {
       updateStatsPanel(settings);
       els.statusText.textContent = state.sources.length
         ? "Centang minimal satu SVG untuk membuat pattern."
-        : "Upload SVG untuk mulai membuat pattern.";
+        : "Upload SVG untuk mulai membuat pattern 16:9.";
       return;
     }
 
@@ -692,9 +580,7 @@ async function drawPattern() {
       return sum + PatternCollision.wrapOffsets(item, settings).length - 1;
     }, 0);
     const skipped = state.skippedCount ? `, ${state.skippedCount} objek dilewati karena collision` : "";
-    
-    const aspectLabel = settings.width === settings.height ? 'Square 1:1' : 'Rectangle 16:9';
-    els.statusText.textContent = `${state.placements.length} objek, ${duplicateCount} salinan tepi${skipped}, ${aspectLabel} ${settings.width} x ${settings.height}px.`;
+    els.statusText.textContent = `${state.placements.length} objek, ${duplicateCount} salinan tepi${skipped}, canvas ${settings.width} x ${settings.height}px, rasio 16:9.`;
   } finally {
     isDrawing = false;
   }
@@ -827,41 +713,6 @@ function downloadSvg() {
   window.setTimeout(() => URL.revokeObjectURL(url), 500);
 }
 
-// ---------- DOWNLOAD JPG INDIVIDUAL ----------
-function downloadJpg() {
-  if (!state.placements.length) {
-    alert('Generate pattern terlebih dahulu!');
-    return;
-  }
-
-  const settings = getSettings();
-  const dpi = parseInt(els.jpgDpi.value) || 300;
-  const printWidth = parseFloat(els.printWidth.value) || 4;
-  const printHeight = parseFloat(els.printHeight.value) || 6;
-  const quality = parseFloat(els.jpgQuality.value) || 0.92;
-  const pixelWidth = Math.round(printWidth * dpi);
-  const pixelHeight = Math.round(printHeight * dpi);
-
-  const jpgCanvas = document.createElement('canvas');
-  jpgCanvas.width = pixelWidth;
-  jpgCanvas.height = pixelHeight;
-  const jpgCtx = jpgCanvas.getContext('2d');
-  
-  if (settings.background.mode === "color") {
-    jpgCtx.fillStyle = settings.background.color;
-    jpgCtx.fillRect(0, 0, pixelWidth, pixelHeight);
-  }
-  
-  jpgCtx.drawImage(els.canvas, 0, 0, pixelWidth, pixelHeight);
-  
-  jpgCanvas.toBlob(function(blob) {
-    const url = URL.createObjectURL(blob);
-    const filename = `seamless-pattern-${exportFileLabel(settings)}-${dpi}dpi-${els.seed.value}.jpg`;
-    download(filename, url);
-    window.setTimeout(() => URL.revokeObjectURL(url), 500);
-  }, 'image/jpeg', quality);
-}
-
 // ---------- HANDLE FILE ----------
 async function handleFiles(event) {
   const files = Array.from(event.target.files || []);
@@ -918,58 +769,12 @@ function shuffleSeed() {
 
 function syncHeightToWidth() {
   const width = Math.round(numberFrom(els.tileWidth));
-  const selected = document.querySelector('input[name="aspectRatio"]:checked');
-  
-  if (selected) {
-    switch (selected.value) {
-      case '1:1':
-        els.tileHeight.value = width;
-        break;
-      case '4:3':
-        els.tileHeight.value = Math.round(width / (4/3));
-        break;
-      case '3:2':
-        els.tileHeight.value = Math.round(width / (3/2));
-        break;
-      case '21:9':
-        els.tileHeight.value = Math.round(width / (21/9));
-        break;
-      case '16:9':
-      default:
-        els.tileHeight.value = Math.round(width / CANVAS_RATIO);
-        break;
-    }
-  } else {
-    els.tileHeight.value = Math.round(width / CANVAS_RATIO);
-  }
+  els.tileHeight.value = Math.round(width / CANVAS_RATIO);
 }
 
 function syncWidthToHeight() {
   const height = Math.round(numberFrom(els.tileHeight));
-  const selected = document.querySelector('input[name="aspectRatio"]:checked');
-  
-  if (selected) {
-    switch (selected.value) {
-      case '1:1':
-        els.tileWidth.value = height;
-        break;
-      case '4:3':
-        els.tileWidth.value = Math.round(height * (4/3));
-        break;
-      case '3:2':
-        els.tileWidth.value = Math.round(height * (3/2));
-        break;
-      case '21:9':
-        els.tileWidth.value = Math.round(height * (21/9));
-        break;
-      case '16:9':
-      default:
-        els.tileWidth.value = Math.round(height * CANVAS_RATIO);
-        break;
-    }
-  } else {
-    els.tileWidth.value = Math.round(height * CANVAS_RATIO);
-  }
+  els.tileWidth.value = Math.round(height * CANVAS_RATIO);
 }
 
 function canvasToBlob(canvas) {
@@ -980,6 +785,37 @@ function nextFrame() {
   return new Promise((resolve) => requestAnimationFrame(() => resolve()));
 }
 
+// ---------- SAVE TO FOLDER (File System Access) ----------
+async function saveFilesToFolder(filesGenerator) {
+  let dirHandle;
+  try {
+    dirHandle = await window.showDirectoryPicker();
+  } catch (err) {
+    if (err.name === 'AbortError' || err.name === 'SecurityError') {
+      throw new Error('Pemilihan folder dibatalkan.');
+    }
+    throw err;
+  }
+
+  let count = 0;
+  for await (const file of filesGenerator) {
+    const pathParts = file.name.split('/');
+    let currentHandle = dirHandle;
+    for (let i = 0; i < pathParts.length - 1; i++) {
+      const folderName = pathParts[i];
+      currentHandle = await currentHandle.getDirectoryHandle(folderName, { create: true });
+    }
+    const fileName = pathParts[pathParts.length - 1];
+    const fileHandle = await currentHandle.getFileHandle(fileName, { create: true });
+    const writable = await fileHandle.createWritable();
+    await writable.write(file.input);
+    await writable.close();
+    count++;
+    els.batchStatus.textContent = `Menulis file ${count} ...`;
+  }
+  return count;
+}
+
 // ---------- BATCH DOWNLOAD BY COUNT ----------
 async function* batchGeneratorByCount(count, format) {
   const seeds = state.batchSeeds && state.batchSeeds.length
@@ -987,13 +823,6 @@ async function* batchGeneratorByCount(count, format) {
     : Array.from({ length: count }, () => Math.floor(Math.random() * 999999) + 1);
 
   const sourceName = getSourceName();
-
-  const jpgDpi = parseInt(els.jpgDpi.value) || 300;
-  const printWidth = parseFloat(els.printWidth.value) || 4;
-  const printHeight = parseFloat(els.printHeight.value) || 6;
-  const jpgQuality = parseFloat(els.jpgQuality.value) || 0.92;
-  const pixelWidth = Math.round(printWidth * jpgDpi);
-  const pixelHeight = Math.round(printHeight * jpgDpi);
 
   for (let i = 0; i < seeds.length; i++) {
     const seed = seeds[i];
@@ -1019,34 +848,6 @@ async function* batchGeneratorByCount(count, format) {
         lastModified: new Date(),
       };
     }
-    if (format === "jpg" || format === "both") {
-      const jpgCanvas = document.createElement('canvas');
-      jpgCanvas.width = pixelWidth;
-      jpgCanvas.height = pixelHeight;
-      const jpgCtx = jpgCanvas.getContext('2d');
-      
-      if (settings.background.mode === "color") {
-        jpgCtx.fillStyle = settings.background.color;
-        jpgCtx.fillRect(0, 0, pixelWidth, pixelHeight);
-      }
-      
-      jpgCtx.drawImage(els.canvas, 0, 0, pixelWidth, pixelHeight);
-      
-      const jpgBlob = await new Promise(resolve => {
-        jpgCanvas.toBlob(resolve, 'image/jpeg', jpgQuality);
-      });
-      
-      if (jpgBlob) {
-        yield { 
-          name: `jpg/${baseName}.jpg`, 
-          input: jpgBlob, 
-          lastModified: new Date() 
-        };
-      }
-      
-      jpgCanvas.width = 0;
-      jpgCanvas.height = 0;
-    }
   }
 }
 
@@ -1066,17 +867,14 @@ async function batchDownloadByCount() {
 
   try {
     if (outputMode === "individual") {
-      let fileCount = 0;
-      for await (const file of batchGeneratorByCount(count, format)) {
-        const url = URL.createObjectURL(file.input);
-        download(file.name, url);
-        URL.revokeObjectURL(url);
-        fileCount++;
-        els.batchStatus.textContent = `Mengunduh ${fileCount} ...`;
-        await new Promise(resolve => setTimeout(resolve, 300));
+      try {
+        const total = await saveFilesToFolder(batchGeneratorByCount(count, format));
+        els.batchStatus.textContent = `Selesai. ${total} file disimpan ke folder.`;
+      } catch (folderErr) {
+        els.batchStatus.textContent = `Gagal: ${folderErr.message}`;
       }
-      els.batchStatus.textContent = `Selesai. ${fileCount} file diunduh secara individual.`;
     } else {
+      // Mode zip
       const zipName = `batch-count-${Date.now()}.zip`;
       let handle = null;
       let useFilePicker = false;
@@ -1143,9 +941,11 @@ function applySettingsFromObject(data) {
   if (data.spacing !== undefined) els.spacing.value = data.spacing;
   if (data.jitter !== undefined) els.jitter.value = data.jitter;
 
-  if (data.distribution) setRadioValue(els.distribution, data.distribution);
-  if (data.randomMode !== undefined) els.randomMode.checked = data.randomMode;
   if (data.allowEdgeCuts !== undefined) els.allowEdgeCuts.checked = data.allowEdgeCuts;
+
+  if (data.layout) {
+    els.layoutSelect.value = data.layout;
+  }
 
   if (data.background) {
     if (data.background.mode) setRadioValue(els.bgMode, data.background.mode);
@@ -1189,13 +989,6 @@ async function* batchGeneratorByJson(jsonData, format) {
 
   const backupChecked = state.sources.map(src => src.checked);
 
-  const jpgDpi = parseInt(els.jpgDpi.value) || 300;
-  const printWidth = parseFloat(els.printWidth.value) || 4;
-  const printHeight = parseFloat(els.printHeight.value) || 6;
-  const jpgQuality = parseFloat(els.jpgQuality.value) || 0.92;
-  const pixelWidth = Math.round(printWidth * jpgDpi);
-  const pixelHeight = Math.round(printHeight * jpgDpi);
-
   for (let i = 0; i < jsonData.length; i++) {
     const jsonItem = jsonData[i];
     applySettingsFromObject(jsonItem);
@@ -1220,34 +1013,6 @@ async function* batchGeneratorByJson(jsonData, format) {
           input: new Blob([svg], { type: "image/svg+xml" }),
           lastModified: new Date(),
         };
-      }
-      if (format === "jpg" || format === "both") {
-        const jpgCanvas = document.createElement('canvas');
-        jpgCanvas.width = pixelWidth;
-        jpgCanvas.height = pixelHeight;
-        const jpgCtx = jpgCanvas.getContext('2d');
-        
-        if (settings.background.mode === "color") {
-          jpgCtx.fillStyle = settings.background.color;
-          jpgCtx.fillRect(0, 0, pixelWidth, pixelHeight);
-        }
-        
-        jpgCtx.drawImage(els.canvas, 0, 0, pixelWidth, pixelHeight);
-        
-        const jpgBlob = await new Promise(resolve => {
-          jpgCanvas.toBlob(resolve, 'image/jpeg', jpgQuality);
-        });
-        
-        if (jpgBlob) {
-          yield { 
-            name: `jpg/${baseName}.jpg`, 
-            input: jpgBlob, 
-            lastModified: new Date() 
-          };
-        }
-        
-        jpgCanvas.width = 0;
-        jpgCanvas.height = 0;
       }
     } else {
       const sources = mode === 'all' ? state.sources : checkedSources();
@@ -1279,34 +1044,6 @@ async function* batchGeneratorByJson(jsonData, format) {
             input: new Blob([svg], { type: "image/svg+xml" }),
             lastModified: new Date(),
           };
-        }
-        if (format === "jpg" || format === "both") {
-          const jpgCanvas = document.createElement('canvas');
-          jpgCanvas.width = pixelWidth;
-          jpgCanvas.height = pixelHeight;
-          const jpgCtx = jpgCanvas.getContext('2d');
-          
-          if (settingsLocal.background.mode === "color") {
-            jpgCtx.fillStyle = settingsLocal.background.color;
-            jpgCtx.fillRect(0, 0, pixelWidth, pixelHeight);
-          }
-          
-          jpgCtx.drawImage(els.canvas, 0, 0, pixelWidth, pixelHeight);
-          
-          const jpgBlob = await new Promise(resolve => {
-            jpgCanvas.toBlob(resolve, 'image/jpeg', jpgQuality);
-          });
-          
-          if (jpgBlob) {
-            yield { 
-              name: `jpg/${baseName}.jpg`, 
-              input: jpgBlob, 
-              lastModified: new Date() 
-            };
-          }
-          
-          jpgCanvas.width = 0;
-          jpgCanvas.height = 0;
         }
       }
     }
@@ -1341,16 +1078,12 @@ async function batchDownloadByJson() {
 
   try {
     if (outputMode === "individual") {
-      let fileCount = 0;
-      for await (const file of batchGeneratorByJson(state.batchJsonData, format)) {
-        const url = URL.createObjectURL(file.input);
-        download(file.name, url);
-        URL.revokeObjectURL(url);
-        fileCount++;
-        els.batchStatus.textContent = `Mengunduh ${fileCount} ...`;
-        await new Promise(resolve => setTimeout(resolve, 300));
+      try {
+        const total = await saveFilesToFolder(batchGeneratorByJson(state.batchJsonData, format));
+        els.batchStatus.textContent = `Selesai. ${total} file disimpan ke folder.`;
+      } catch (folderErr) {
+        els.batchStatus.textContent = `Gagal: ${folderErr.message}`;
       }
-      els.batchStatus.textContent = `Selesai. ${fileCount} file diunduh secara individual.`;
     } else {
       const zipName = `batch-json-${Date.now()}.zip`;
       let handle = null;
@@ -1477,17 +1210,6 @@ function importSettings(file) {
   });
 });
 
-els.distribution.forEach((input) => {
-  input.addEventListener("input", () => {
-    els.randomMode.checked = input.value !== "grid";
-    drawPattern().catch(console.error);
-  });
-});
-els.randomMode.addEventListener("input", () => {
-  setDistribution(els.randomMode.checked ? "random" : "grid");
-  drawPattern().catch(console.error);
-});
-
 els.colorMode.forEach((input) => {
   input.addEventListener("input", () => {
     state.placements.forEach(item => delete item.renderSource);
@@ -1549,7 +1271,6 @@ els.sampleBtn.addEventListener("click", useSampleSvg);
 els.shuffleBtn.addEventListener("click", shuffleSeed);
 els.downloadPngBtn.addEventListener("click", downloadPng);
 els.downloadSvgBtn.addEventListener("click", downloadSvg);
-els.downloadJpgBtn.addEventListener("click", downloadJpg);
 els.batchDownloadCountBtn.addEventListener("click", batchDownloadByCount);
 els.batchDownloadJsonBtn.addEventListener("click", batchDownloadByJson);
 els.previewScale.addEventListener("input", () => updatePreviewBackground());
@@ -1581,142 +1302,67 @@ if (els.importJsonInput) {
   });
 }
 
-// ---------- JPG EVENT LISTENERS ----------
-els.batchFormat.addEventListener('change', function() {
-  if (this.value === 'jpg' || this.value === 'both') {
-    els.jpgSettings.classList.add('visible');
-    updatePixelDimensions();
-  } else {
-    els.jpgSettings.classList.remove('visible');
-  }
+els.layoutSelect.addEventListener("change", () => {
+  drawPattern().catch(console.error);
 });
 
-els.jpgDpi.addEventListener('input', updatePixelDimensions);
-els.printWidth.addEventListener('input', updatePixelDimensions);
-els.printHeight.addEventListener('input', updatePixelDimensions);
+// ---------- HELP TOOLTIP INIT ----------
+function initHelpTooltips() {
+  document.querySelectorAll('[data-help]').forEach((el) => {
+    const key = el.dataset.help;
+    const text = window.HELP_TEXTS?.[key] || 'Tidak ada keterangan.';
+    const label = el.closest('label');
+    if (!label) return;
 
-document.querySelectorAll('.preset-size-btn').forEach(btn => {
-  btn.addEventListener('click', function() {
-    els.printWidth.value = this.dataset.w;
-    els.printHeight.value = this.dataset.h;
-    updatePixelDimensions();
-  });
-});
+    // Cari teks label
+    let target = null;
+    for (const child of label.childNodes) {
+      if (child.nodeType === Node.TEXT_NODE && child.textContent.trim()) {
+        target = child;
+        break;
+      }
+      if (child.nodeType === Node.ELEMENT_NODE && !['INPUT', 'SELECT', 'OUTPUT', 'BUTTON'].includes(child.tagName)) {
+        const innerSpan = child.querySelector('span:not(.help-badge)');
+        if (innerSpan) {
+          target = innerSpan;
+          break;
+        }
+        target = child;
+        break;
+      }
+    }
 
-// ============================================================
-// ASPECT RATIO EVENT LISTENER
-// ============================================================
+    if (!target) {
+      const switchSpan = label.querySelector('.switch span:first-child');
+      if (switchSpan) target = switchSpan;
+    }
 
-document.getElementById('applyAspectBtn').addEventListener('click', applyAspectRatio);
+    if (!target) return;
 
-document.querySelectorAll('input[name="aspectRatio"]').forEach(radio => {
-  radio.addEventListener('change', function() {
-    // Optional: auto-apply without clicking button
-    // applyAspectRatio();
-  });
-});
+    const badge = document.createElement('span');
+    badge.className = 'help-badge';
+    badge.textContent = '?';
+    badge.dataset.tooltip = text;
 
-// ============================================================
-// COLLAPSIBLE SECTIONS
-// ============================================================
-
-document.querySelectorAll('.section-header').forEach(header => {
-  header.addEventListener('click', function(e) {
-    if (e.target.closest('.collapse-btn')) return;
-    
-    const targetId = this.dataset.section;
-    const body = document.getElementById(`section-${targetId}`);
-    const btn = this.querySelector('.collapse-btn');
-    
-    if (body) {
-      body.classList.toggle('collapsed');
-      btn.classList.toggle('collapsed');
-      btn.textContent = body.classList.contains('collapsed') ? '+' : '−';
+    if (target.after) {
+      target.after(badge);
+    } else {
+      target.parentNode.insertBefore(badge, target.nextSibling);
     }
   });
-});
-
-document.querySelectorAll('.collapse-btn').forEach(btn => {
-  btn.addEventListener('click', function(e) {
-    e.stopPropagation();
-    const targetId = this.dataset.target;
-    const body = document.getElementById(`section-${targetId}`);
-    
-    if (body) {
-      body.classList.toggle('collapsed');
-      this.classList.toggle('collapsed');
-      this.textContent = body.classList.contains('collapsed') ? '+' : '−';
-    }
-  });
-});
-
-// ============================================================
-// JPG ORIENTATION
-// ============================================================
-
-document.getElementById('applyOrientationBtn').addEventListener('click', function() {
-  const orientation = document.querySelector('input[name="jpgOrientation"]:checked');
-  if (!orientation) return;
-  
-  const widthInput = document.getElementById('printWidth');
-  const heightInput = document.getElementById('printHeight');
-  const currentWidth = parseFloat(widthInput.value) || 4;
-  const currentHeight = parseFloat(heightInput.value) || 6;
-  
-  switch (orientation.value) {
-    case 'portrait':
-      if (currentWidth >= currentHeight) {
-        widthInput.value = Math.min(currentWidth, currentHeight);
-        heightInput.value = Math.max(currentWidth, currentHeight);
-      }
-      break;
-    case 'landscape':
-      if (currentWidth <= currentHeight) {
-        widthInput.value = Math.max(currentWidth, currentHeight);
-        heightInput.value = Math.min(currentWidth, currentHeight);
-      }
-      break;
-    case 'square':
-      const avg = (currentWidth + currentHeight) / 2;
-      widthInput.value = Math.round(avg * 10) / 10;
-      heightInput.value = Math.round(avg * 10) / 10;
-      break;
-  }
-  
-  updatePixelDimensions();
-});
-
-// ============================================================
-// VERTICAL SLIDER
-// ============================================================
-
-function setVerticalSlider(containerId) {
-  const container = document.getElementById(containerId);
-  if (container) {
-    container.classList.add('vertical');
-  }
 }
 
 // ---------- INISIALISASI ----------
 updateLabels();
+syncHeightToWidth();
 updateExportLabels();
-setDistribution("random");
 updateFileLabel();
 updateRepeatLabel();
-
-// Set default aspect ratio 16:9
-const defaultAspect = document.querySelector('input[name="aspectRatio"][value="1:1"]');
-if (defaultAspect) {
-  defaultAspect.checked = true;
-  applyAspectRatio();
-}
-
-// Inisialisasi JPG settings
-if (els.batchFormat.value === 'jpg' || els.batchFormat.value === 'both') {
-  els.jpgSettings.classList.add('visible');
-  updatePixelDimensions();
-} else {
-  els.jpgSettings.classList.remove('visible');
-}
-
 drawPattern().catch(console.error);
+
+// Init help tooltips after DOM ready
+document.addEventListener('DOMContentLoaded', () => {
+  if (window.HELP_TEXTS) {
+    initHelpTooltips();
+  }
+});
