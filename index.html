@@ -6,7 +6,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Seamless Pattern Generator</title>
   <link rel="stylesheet" href="./styles.css" />
-  <!-- help-texts.js akan dimuat sebelum app.js -->
   <script src="./help-texts.js" defer></script>
 </head>
 
@@ -29,7 +28,6 @@
           <small>Objek akan dihitung otomatis ketika melewati batas tile.</small>
         </label>
 
-        <!-- Tombol manajemen file -->
         <div class="actions" style="margin-top: 6px; gap: 6px;">
           <button id="checkAllBtn" type="button" class="secondary" style="flex:1;">✅ Check All</button>
           <button id="uncheckAllBtn" type="button" class="secondary" style="flex:1;">⬜ Uncheck All</button>
@@ -44,6 +42,14 @@
           <label>
             <span data-help="tileHeight">Tinggi canvas</span>
             <input id="tileHeight" type="number" min="360" max="4320" step="9" value="2160" />
+          </label>
+          <!-- TAMBAHAN: pilihan aspek rasio -->
+          <label style="grid-column: span 2;">
+            <span data-help="aspectRatio">Aspect Ratio</span>
+            <select id="aspectRatio" style="width:100%; padding:6px; border-radius:8px; border:1px solid var(--line);">
+              <option value="16/9">16:9</option>
+              <option value="1/1">1:1</option>
+            </select>
           </label>
           <label>
             <span data-help="count">Jumlah objek</span>
@@ -182,7 +188,6 @@
             </label>
           </div>
 
-          <!-- Mode Batch -->
           <div class="control-grid" style="margin-top: 6px;">
             <fieldset class="batch-mode-group" style="border:none;padding:0;display:flex;gap:12px;">
               <legend style="font-weight:bold;font-size:0.9em;">Mode Batch (JSON)</legend>
@@ -301,7 +306,6 @@
   <script src="./collision.js"></script>
   <script src="./distribution.js"></script>
   <script src="./stats.js"></script>
-  <!-- help-texts.js dimuat sebelum app.js -->
   <script src="./help-texts.js"></script>
   <script src="./app.js"></script>
 </body>

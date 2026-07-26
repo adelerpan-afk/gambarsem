@@ -6,6 +6,7 @@ const HELP_TEXTS = {
   // === CANVAS ===
   tileWidth: 'Lebar canvas dalam pixel. Rasio 16:9 otomatis menjaga tinggi proporsional.',
   tileHeight: 'Tinggi canvas dalam pixel. Akan menyesuaikan dengan lebar berdasarkan rasio 16:9.',
+  aspectRatio: 'Pilih rasio aspek canvas: 16:9 untuk layar lebar, 1:1 untuk persegi.',
 
   // === JUMLAH & SEED ===
   count: 'Jumlah objek yang akan ditempatkan di dalam tile. Semakin banyak, semakin padat pattern.',
@@ -64,5 +65,4 @@ const HELP_TEXTS = {
   coverageLabel: 'Persentase area canvas yang tertutup oleh objek. 20-40% = ideal untuk pattern.',
 };
 
-// Ekspos ke global
 window.HELP_TEXTS = HELP_TEXTS;

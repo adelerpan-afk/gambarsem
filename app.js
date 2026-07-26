@@ -9,6 +9,7 @@ const els = {
   thumbStrip: document.querySelector("#thumbStrip"),
   tileWidth: document.querySelector("#tileWidth"),
   tileHeight: document.querySelector("#tileHeight"),
+  aspectRatio: document.querySelector("#aspectRatio"), // TAMBAHAN
   count: document.querySelector("#count"),
   seed: document.querySelector("#seed"),
   baseScale: document.querySelector("#baseScale"),
@@ -67,7 +68,7 @@ const els = {
 };
 
 const ctx = els.canvas.getContext("2d");
-const CANVAS_RATIO = 16 / 9;
+// Hapus konstanta CANVAS_RATIO – akan diganti dengan fungsi getAspectRatio()
 const MAX_PLACEMENT_ATTEMPTS = 300;
 const MAX_SHRINK_STEPS = 6;
 const CLIENT_ZIP_URL = "https://cdn.jsdelivr.net/npm/client-zip@2.5.0/index.js";
@@ -132,10 +133,17 @@ function checkedSources() {
   return state.sources.filter((source) => source.checked);
 }
 
+// ---------- ASPEK RASIO ----------
+function getAspectRatio() {
+  const value = els.aspectRatio.value;
+  if (value === "1/1") return 1;
+  return 16 / 9; // default
+}
+
 // ---------- SETTINGS ----------
 function getSettings() {
   const width = Math.round(numberFrom(els.tileWidth));
-  const height = Math.round(width / CANVAS_RATIO);
+  const height = Math.round(width / getAspectRatio()); // dinamis
   const bgMode = document.querySelector('input[name="bgMode"]:checked')?.value ?? "transparent";
   const colorMode = document.querySelector('input[name="colorMode"]:checked')?.value ?? "original";
 
@@ -432,7 +440,7 @@ function applyAutoLayout() {
   els.scaleVariance.value = layout.variance;
   els.spacing.value = layout.spacing;
   els.jitter.value = layout.jitter;
-  els.layoutSelect.value = "scattered"; // set layout default ke scattered
+  els.layoutSelect.value = "scattered";
   updateLabels();
   drawPattern().catch(console.error);
 }
@@ -580,7 +588,7 @@ async function drawPattern() {
       return sum + PatternCollision.wrapOffsets(item, settings).length - 1;
     }, 0);
     const skipped = state.skippedCount ? `, ${state.skippedCount} objek dilewati karena collision` : "";
-    els.statusText.textContent = `${state.placements.length} objek, ${duplicateCount} salinan tepi${skipped}, canvas ${settings.width} x ${settings.height}px, rasio 16:9.`;
+    els.statusText.textContent = `${state.placements.length} objek, ${duplicateCount} salinan tepi${skipped}, canvas ${settings.width} x ${settings.height}px, rasio ${getAspectRatio().toFixed(2)}:1.`;
   } finally {
     isDrawing = false;
   }
@@ -769,12 +777,12 @@ function shuffleSeed() {
 
 function syncHeightToWidth() {
   const width = Math.round(numberFrom(els.tileWidth));
-  els.tileHeight.value = Math.round(width / CANVAS_RATIO);
+  els.tileHeight.value = Math.round(width / getAspectRatio());
 }
 
 function syncWidthToHeight() {
   const height = Math.round(numberFrom(els.tileHeight));
-  els.tileWidth.value = Math.round(height * CANVAS_RATIO);
+  els.tileWidth.value = Math.round(height * getAspectRatio());
 }
 
 function canvasToBlob(canvas) {
@@ -874,7 +882,6 @@ async function batchDownloadByCount() {
         els.batchStatus.textContent = `Gagal: ${folderErr.message}`;
       }
     } else {
-      // Mode zip
       const zipName = `batch-count-${Date.now()}.zip`;
       let handle = null;
       let useFilePicker = false;
@@ -1235,6 +1242,8 @@ els.randomColorBtn.addEventListener("click", () => {
   state.placements.forEach(item => delete item.renderSource);
   drawPattern().catch(console.error);
 });
+
+// ---------- PERUBAHAN: event listener untuk tileWidth & tileHeight panggil sync dengan rasio dinamis ----------
 els.tileWidth.addEventListener("input", () => {
   syncHeightToWidth();
   updateExportLabels();
@@ -1245,6 +1254,15 @@ els.tileHeight.addEventListener("input", () => {
   updateExportLabels();
   drawPattern().catch(console.error);
 });
+
+// ---------- TAMBAHAN: event listener untuk perubahan aspect ratio ----------
+els.aspectRatio.addEventListener("change", () => {
+  // Saat rasio berubah, sesuaikan tinggi berdasarkan lebar saat ini
+  syncHeightToWidth();
+  updateExportLabels();
+  drawPattern().catch(console.error);
+});
+
 els.file.addEventListener("change", handleFiles);
 els.thumbStrip.addEventListener("change", (event) => {
   const id = Number(event.target.dataset.toggle);
@@ -1314,7 +1332,6 @@ function initHelpTooltips() {
     const label = el.closest('label');
     if (!label) return;
 
-    // Cari teks label
     let target = null;
     for (const child of label.childNodes) {
       if (child.nodeType === Node.TEXT_NODE && child.textContent.trim()) {
@@ -1360,7 +1377,6 @@ updateFileLabel();
 updateRepeatLabel();
 drawPattern().catch(console.error);
 
-// Init help tooltips after DOM ready
 document.addEventListener('DOMContentLoaded', () => {
   if (window.HELP_TEXTS) {
     initHelpTooltips();
