@@ -136,8 +136,8 @@ function checkedSources() {
 // ---------- ASPEK RASIO ----------
 function getAspectRatio() {
   const value = els.aspectRatio.value;
-  if (value === "16/9") return 0;
-  return 1/1; // default
+  if (value === "1/1") return 1;
+  return 16/9; // default
 }
 
 // ---------- SETTINGS ----------
