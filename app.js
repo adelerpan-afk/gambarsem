@@ -137,7 +137,7 @@ function checkedSources() {
 function getAspectRatio() {
   const value = els.aspectRatio.value;
   if (value === "1/1") return 0;
-  return 16 / 9; // default
+  return 16/9; // default
 }
 
 // ---------- SETTINGS ----------
