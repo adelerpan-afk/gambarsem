@@ -4,9 +4,9 @@
 
 const HELP_TEXTS = {
   // === CANVAS ===
-  tileWidth: 'Lebar canvas dalam pixel. Rasio 16:9 otomatis menjaga tinggi proporsional.',
-  tileHeight: 'Tinggi canvas dalam pixel. Akan menyesuaikan dengan lebar berdasarkan rasio 16:9.',
-  aspectRatio: 'Pilih rasio aspek canvas: 16:9 untuk layar lebar, 1:1 untuk persegi.',
+  tileWidth: 'Lebar canvas dalam pixel. Akan mempengaruhi tinggi secara otomatis berdasarkan rasio aspek.',
+  tileHeight: 'Tinggi canvas dalam pixel. Akan menyesuaikan dengan lebar berdasarkan rasio aspek yang dipilih.',
+  aspectRatio: 'Pilih rasio aspek canvas. 16:9 (layar lebar) atau 1:1 (persegi). Perubahan akan otomatis menyesuaikan tinggi canvas.',
 
   // === JUMLAH & SEED ===
   count: 'Jumlah objek yang akan ditempatkan di dalam tile. Semakin banyak, semakin padat pattern.',
@@ -20,12 +20,8 @@ const HELP_TEXTS = {
   jitter: 'Seberapa besar deviasi posisi dari grid sempurna. 0% = grid rapi, 100% = acak total.',
   repeatCount: 'Jumlah pengulangan tile yang ditampilkan di preview. 1× = satu tile, 5× = 5x5 tile.',
 
-  // === DISTRIBUTION ===
-  distribution: 'Metode penempatan objek: Grid (teratur), Random (acak), Blue Noise (tersebar merata), Poisson Disk (jarak konsisten).',
-  randomMode: 'Jika diaktifkan, posisi objek menjadi acak (mengabaikan metode distribusi). Matikan untuk distribusi teratur.',
-
   // === LAYOUT ===
-  layout: 'Gaya penempatan visual: Neat Grid (rapi), Diagonal Flow (dinamis), Radial Center (melingkar), Tossed (acak), Scattered (blue noise), Stripe (jalur), All-Over (merata).',
+  layout: 'Gaya penempatan visual: Neat Grid (grid rapi), Diagonal Flow (menyebar diagonal), Radial Center (melingkar dari pusat), Tossed (acak penuh), Scattered (Poisson disk - jarak merata), Stripe (pola garis), All-Over (menyebar merata).',
 
   // === IZIN ===
   allowEdgeCuts: 'Izinkan objek dipotong di tepi tile. Diaktifkan = objek bisa menempel tepi, dimatikan = objek dijaga di dalam tile.',
@@ -54,15 +50,15 @@ const HELP_TEXTS = {
   // === BATCH ===
   batchCount: 'Jumlah gambar yang akan dibuat dalam batch. Maksimal 500.',
   batchFormat: 'Format output batch: PNG saja, SVG saja, atau keduanya.',
-  batchMode: 'Mode batch berbasis JSON: Checked (hanya file dicentang), All files (semua file), Original (gabungan semua file).',
-  batchOutputMode: 'Zip archive = semua file dalam satu ZIP. Individual = download satu per satu.',
+  batchMode: 'Mode batch berbasis JSON: Checked (hanya SVG yang dicentang), All files (semua SVG), Original (gabungan semua SVG dengan warna asli masing-masing).',
+  batchOutputMode: 'Zip archive = semua file dalam satu ZIP. Individual = download satu per satu ke folder pilihan.',
   batchDownloadCountBtn: 'Buat batch berdasarkan jumlah gambar yang ditentukan di atas.',
   batchDownloadJsonBtn: 'Buat batch berdasarkan pengaturan yang dimuat dari file JSON.',
-  exportJsonBtn: 'Download semua pengaturan saat ini sebagai file JSON (termasuk seed, layout, warna, dll).',
+  exportJsonBtn: 'Download semua pengaturan saat ini sebagai file JSON (termasuk seed, layout, warna, aspect ratio, dll).',
   importJsonInput: 'Load pengaturan dari file JSON. Support single settings atau batch array.',
 
   // === STATISTIK ===
-  coverageLabel: 'Persentase area canvas yang tertutup oleh objek. 20-40% = ideal untuk pattern.',
+  coverageLabel: 'Persentase area canvas yang tertutup objek. <20% = terlalu renggang, 20-40% = ideal, 40-60% = padat, >60% = terlalu penuh.',
 };
 
 window.HELP_TEXTS = HELP_TEXTS;
