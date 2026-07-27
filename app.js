@@ -9,7 +9,7 @@ const els = {
   thumbStrip: document.querySelector("#thumbStrip"),
   tileWidth: document.querySelector("#tileWidth"),
   tileHeight: document.querySelector("#tileHeight"),
-  aspectRatio: document.querySelector("#aspectRatio"), // TAMBAHAN
+  aspectRatio: document.querySelector("#aspectRatio"),
   count: document.querySelector("#count"),
   seed: document.querySelector("#seed"),
   baseScale: document.querySelector("#baseScale"),
@@ -68,7 +68,6 @@ const els = {
 };
 
 const ctx = els.canvas.getContext("2d");
-// Hapus konstanta CANVAS_RATIO – akan diganti dengan fungsi getAspectRatio()
 const MAX_PLACEMENT_ATTEMPTS = 300;
 const MAX_SHRINK_STEPS = 6;
 const CLIENT_ZIP_URL = "https://cdn.jsdelivr.net/npm/client-zip@2.5.0/index.js";
@@ -133,17 +132,20 @@ function checkedSources() {
   return state.sources.filter((source) => source.checked);
 }
 
-// ---------- ASPEK RASIO ----------
+// ---------- ASPEK RASIO (DIPERBAIKI) ----------
 function getAspectRatio() {
   const value = els.aspectRatio.value;
-  if (value === "1/1") return 1;
+  if (value === "1/1") return 1;      // ✅ Perbaikan: 1:1 = 1, bukan 0
+  if (value === "16/9") return 16/9;  // 16:9 ≈ 1.777...
   return 16/9; // default
 }
 
 // ---------- SETTINGS ----------
 function getSettings() {
   const width = Math.round(numberFrom(els.tileWidth));
-  const height = Math.round(width / getAspectRatio()); // dinamis
+  const aspect = getAspectRatio();
+  // ✅ Validasi: pastikan aspect ratio valid
+  const height = aspect > 0 ? Math.round(width / aspect) : Math.round(width * 9 / 16);
   const bgMode = document.querySelector('input[name="bgMode"]:checked')?.value ?? "transparent";
   const colorMode = document.querySelector('input[name="colorMode"]:checked')?.value ?? "original";
 
@@ -568,7 +570,7 @@ async function drawPattern() {
       updateStatsPanel(settings);
       els.statusText.textContent = state.sources.length
         ? "Centang minimal satu SVG untuk membuat pattern."
-        : "Upload SVG untuk mulai membuat pattern 16:9.";
+        : "Upload SVG untuk mulai membuat pattern.";
       return;
     }
 
@@ -588,7 +590,8 @@ async function drawPattern() {
       return sum + PatternCollision.wrapOffsets(item, settings).length - 1;
     }, 0);
     const skipped = state.skippedCount ? `, ${state.skippedCount} objek dilewati karena collision` : "";
-    els.statusText.textContent = `${state.placements.length} objek, ${duplicateCount} salinan tepi${skipped}, canvas ${settings.width} x ${settings.height}px, rasio ${getAspectRatio().toFixed(2)}:1.`;
+    const aspectRatio = getAspectRatio().toFixed(2);
+    els.statusText.textContent = `${state.placements.length} objek, ${duplicateCount} salinan tepi${skipped}, canvas ${settings.width} x ${settings.height}px, rasio ${aspectRatio}:1.`;
   } finally {
     isDrawing = false;
   }
@@ -775,14 +778,27 @@ function shuffleSeed() {
   drawPattern().catch(console.error);
 }
 
+// ---------- SYNC FUNCTIONS (DIPERBAIKI) ----------
 function syncHeightToWidth() {
   const width = Math.round(numberFrom(els.tileWidth));
-  els.tileHeight.value = Math.round(width / getAspectRatio());
+  const aspect = getAspectRatio();
+  if (aspect <= 0) {
+    console.warn('Aspect ratio tidak valid, menggunakan default 16:9');
+    els.tileHeight.value = Math.round(width * 9 / 16);
+    return;
+  }
+  els.tileHeight.value = Math.round(width / aspect);
 }
 
 function syncWidthToHeight() {
   const height = Math.round(numberFrom(els.tileHeight));
-  els.tileWidth.value = Math.round(height * getAspectRatio());
+  const aspect = getAspectRatio();
+  if (aspect <= 0) {
+    console.warn('Aspect ratio tidak valid, menggunakan default 16:9');
+    els.tileWidth.value = Math.round(height * 16 / 9);
+    return;
+  }
+  els.tileWidth.value = Math.round(height * aspect);
 }
 
 function canvasToBlob(canvas) {
@@ -963,6 +979,11 @@ function applySettingsFromObject(data) {
     if (data.coloring.mode) setRadioValue(els.colorMode, data.coloring.mode);
     if (data.coloring.singleColor) els.singleColorPicker.value = data.coloring.singleColor;
     if (data.coloring.colors) els.multiColorHex.value = data.coloring.colors.join(', ');
+  }
+
+  // ✅ Tambahan: handle aspect ratio
+  if (data.aspectRatio) {
+    els.aspectRatio.value = data.aspectRatio;
   }
 
   updateLabels();
@@ -1155,6 +1176,7 @@ function exportSettings() {
   const batchSeeds = state.batchSeeds && state.batchSeeds.length ? state.batchSeeds : [];
   const exportData = {
     ...settings,
+    aspectRatio: els.aspectRatio.value, // ✅ Tambahan: export aspect ratio
     batchSeeds: batchSeeds,
   };
   exportData.baseScale = Math.round(exportData.baseScale * 100);
@@ -1243,7 +1265,7 @@ els.randomColorBtn.addEventListener("click", () => {
   drawPattern().catch(console.error);
 });
 
-// ---------- PERUBAHAN: event listener untuk tileWidth & tileHeight panggil sync dengan rasio dinamis ----------
+// ---------- EVENT LISTENER UNTUK TILE WIDTH & HEIGHT ----------
 els.tileWidth.addEventListener("input", () => {
   syncHeightToWidth();
   updateExportLabels();
@@ -1255,9 +1277,8 @@ els.tileHeight.addEventListener("input", () => {
   drawPattern().catch(console.error);
 });
 
-// ---------- TAMBAHAN: event listener untuk perubahan aspect ratio ----------
+// ---------- EVENT LISTENER UNTUK ASPECT RATIO ----------
 els.aspectRatio.addEventListener("change", () => {
-  // Saat rasio berubah, sesuaikan tinggi berdasarkan lebar saat ini
   syncHeightToWidth();
   updateExportLabels();
   drawPattern().catch(console.error);
