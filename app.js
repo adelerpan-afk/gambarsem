@@ -79,7 +79,7 @@ const state = {
   skippedCount: 0,
   batchSeeds: [],
   batchJsonData: null,
- colorVersion: 0,
+  colorVersion: 0,
 };
 
 const sampleSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 90">
@@ -133,20 +133,19 @@ function checkedSources() {
   return state.sources.filter((source) => source.checked);
 }
 
-// ---------- ASPEK RASIO (DIPERBAIKI) ----------
+// ---------- ASPEK RASIO ----------
 function getAspectRatio() {
   const value = els.aspectRatio.value;
-  if (value === "1/1") return 1;      // ✅ Perbaikan: 1:1 = 1, bukan 0
-  if (value === "16/9") return 16/9;  // 16:9 ≈ 1.777...
-  return 1; // default
+  if (value === "1/1") return 1;
+  if (value === "16/9") return 16/9;
+  return 1;
 }
 
 // ---------- SETTINGS ----------
 function getSettings() {
   const width = Math.round(numberFrom(els.tileWidth));
   const aspect = getAspectRatio();
-  // ✅ Validasi: pastikan aspect ratio valid
-  const height = aspect > 0 ? Math.round(width / aspect) : Math.round(width * 1 / 1);
+  const height = aspect > 0 ? Math.round(width / aspect) : Math.round(width);
   const bgMode = document.querySelector('input[name="bgMode"]:checked')?.value ?? "transparent";
   const colorMode = document.querySelector('input[name="colorMode"]:checked')?.value ?? "original";
 
@@ -294,7 +293,6 @@ function getSourceName() {
 }
 
 // ---------- MODIFIKASI SVG UNTUK MULTI COLOR PER PATH ----------
-// Fungsi ini perlu direwrite total
 function modifySvgWithMultiColors(svgText, colors, seed) {
   const parser = new DOMParser();
   const doc = parser.parseFromString(svgText, "image/svg+xml");
@@ -303,7 +301,6 @@ function modifySvgWithMultiColors(svgText, colors, seed) {
 
   const random = mulberry32(seed);
   
-  // Recursive function untuk process semua elemen
   function processElement(el) {
     const tagName = el.tagName.toLowerCase();
     if (['path', 'circle', 'rect', 'ellipse', 'polygon', 'polyline', 'line', 'text', 'g'].includes(tagName)) {
@@ -489,7 +486,6 @@ function buildPlacements(settings) {
 }
 
 // ---------- RENDER SUMBER GAMBAR ----------
-// Fungsi ini perlu direwrite total
 async function renderSourceFor(item) {
   const settings = getSettings();
   const currentVersion = state.colorVersion || 0;
@@ -816,13 +812,13 @@ function shuffleSeed() {
   drawPattern().catch(console.error);
 }
 
-// ---------- SYNC FUNCTIONS (DIPERBAIKI) ----------
+// ---------- SYNC FUNCTIONS ----------
 function syncHeightToWidth() {
   const width = Math.round(numberFrom(els.tileWidth));
   const aspect = getAspectRatio();
   if (aspect <= 0) {
     console.warn('Aspect ratio tidak valid, menggunakan default 1:1');
-    els.tileHeight.value = Math.round(width * 1);
+    els.tileHeight.value = Math.round(width);
     return;
   }
   els.tileHeight.value = Math.round(width / aspect);
@@ -833,7 +829,7 @@ function syncWidthToHeight() {
   const aspect = getAspectRatio();
   if (aspect <= 0) {
     console.warn('Aspect ratio tidak valid, menggunakan default 1:1');
-    els.tileWidth.value = Math.round(height * 1);
+    els.tileWidth.value = Math.round(height);
     return;
   }
   els.tileWidth.value = Math.round(height * aspect);
@@ -863,10 +859,17 @@ async function saveFilesToFolder(filesGenerator) {
   for await (const file of filesGenerator) {
     const pathParts = file.name.split('/');
     let currentHandle = dirHandle;
+    
     for (let i = 0; i < pathParts.length - 1; i++) {
       const folderName = pathParts[i];
-      currentHandle = await currentHandle.getDirectoryHandle(folderName, { create: true });
+      try {
+        currentHandle = await currentHandle.getDirectoryHandle(folderName, { create: true });
+      } catch (err) {
+        console.error(`Gagal membuat folder ${folderName}:`, err);
+        throw new Error(`Gagal membuat folder: ${folderName}`);
+      }
     }
+    
     const fileName = pathParts[pathParts.length - 1];
     const fileHandle = await currentHandle.getFileHandle(fileName, { create: true });
     const writable = await fileHandle.createWritable();
@@ -878,41 +881,77 @@ async function saveFilesToFolder(filesGenerator) {
   return count;
 }
 
-// ---------- BATCH DOWNLOAD BY COUNT ----------
+// ---------- BATCH GENERATOR BY COUNT ----------
 async function* batchGeneratorByCount(count, format) {
   const seeds = state.batchSeeds && state.batchSeeds.length
     ? state.batchSeeds.slice(0, count)
     : Array.from({ length: count }, () => Math.floor(Math.random() * 999999) + 1);
 
-  const sourceName = getSourceName();
+  const mode = document.querySelector('input[name="batchMode"]:checked')?.value || 'checked';
+  
+  let sourcesToProcess;
+  if (mode === 'all') {
+    sourcesToProcess = state.sources.slice();
+  } else {
+    sourcesToProcess = checkedSources();
+  }
+
+  if (!sourcesToProcess.length) {
+    els.batchStatus.textContent = "Tidak ada file SVG untuk diproses.";
+    return;
+  }
+
+  const backupChecked = state.sources.map(src => src.checked);
 
   for (let i = 0; i < seeds.length; i++) {
     const seed = seeds[i];
     els.seed.value = seed;
-    await drawPattern();
-    await nextFrame();
+    
+    for (let s = 0; s < sourcesToProcess.length; s++) {
+      const source = sourcesToProcess[s];
+      
+      state.sources.forEach(src => src.checked = false);
+      source.checked = true;
+      renderThumbStrip();
+      updateFileLabel();
 
-    const settings = getSettings();
-    const index = i + 1;
-    els.batchStatus.textContent = `Membuat gambar ${index}/${seeds.length} (seed ${seed})...`;
+      await drawPattern();
+      await nextFrame();
 
-    const baseName = `${sourceName}-${index}-${seed}`;
+      const settings = getSettings();
+      const index = i + 1;
+      const idxSource = s + 1;
+      
+      const sourceFolder = source.name.replace(/\.svg$/i, '');
+      const baseName = `${sourceFolder}-${index}-${seed}`;
+      
+      els.batchStatus.textContent = `[${index}/${seeds.length}] [${idxSource}/${sourcesToProcess.length}] ${source.name} (seed ${seed})...`;
 
-    if (format === "png" || format === "both") {
-      const blob = await canvasToBlob(els.canvas);
-      if (blob) yield { name: `png/${baseName}.png`, input: blob, lastModified: new Date() };
-    }
-    if (format === "svg" || format === "both") {
-      const svg = buildSvgMarkup(settings, state.placements);
-      yield {
-        name: `svg/${baseName}.svg`,
-        input: new Blob([svg], { type: "image/svg+xml" }),
-        lastModified: new Date(),
-      };
+      if (format === "png" || format === "both") {
+        const blob = await canvasToBlob(els.canvas);
+        if (blob) yield { 
+          name: `${sourceFolder}/${baseName}.png`, 
+          input: blob, 
+          lastModified: new Date() 
+        };
+      }
+      if (format === "svg" || format === "both") {
+        const svg = buildSvgMarkup(settings, state.placements);
+        yield {
+          name: `${sourceFolder}/${baseName}.svg`,
+          input: new Blob([svg], { type: "image/svg+xml" }),
+          lastModified: new Date(),
+        };
+      }
     }
   }
+
+  state.sources.forEach((src, idx) => src.checked = backupChecked[idx]);
+  renderThumbStrip();
+  updateFileLabel();
 }
 
+// ---------- BATCH DOWNLOAD BY COUNT ----------
 async function batchDownloadByCount() {
   if (!checkedSources().length) {
     els.batchStatus.textContent = "Centang minimal satu SVG dulu.";
@@ -931,14 +970,19 @@ async function batchDownloadByCount() {
     if (outputMode === "individual") {
       try {
         const total = await saveFilesToFolder(batchGeneratorByCount(count, format));
-        els.batchStatus.textContent = `Selesai. ${total} file disimpan ke folder.`;
+        els.batchStatus.textContent = `✅ Selesai. ${total} file disimpan ke folder.`;
       } catch (folderErr) {
-        els.batchStatus.textContent = `Gagal: ${folderErr.message}`;
+        if (folderErr.message.includes('dibatalkan')) {
+          els.batchStatus.textContent = `⚠️ ${folderErr.message}`;
+        } else {
+          els.batchStatus.textContent = `❌ Gagal: ${folderErr.message}`;
+        }
       }
     } else {
       const zipName = `batch-count-${Date.now()}.zip`;
       let handle = null;
       let useFilePicker = false;
+      
       if (window.showSaveFilePicker) {
         try {
           handle = await window.showSaveFilePicker({
@@ -947,8 +991,9 @@ async function batchDownloadByCount() {
           });
           useFilePicker = true;
         } catch (error) {
-          if (error?.name === "AbortError") {
-            els.batchStatus.textContent = "Batch dibatalkan.";
+          if (error?.name === "AbortError" || error?.name === "SecurityError") {
+            els.batchStatus.textContent = "⚠️ Batch dibatalkan.";
+            els.batchDownloadCountBtn.disabled = false;
             return;
           }
           console.warn("File picker failed, falling back to download:", error);
@@ -964,25 +1009,30 @@ async function batchDownloadByCount() {
         try {
           const writable = await handle.createWritable();
           await response.body.pipeTo(writable);
-          els.batchStatus.textContent = `Selesai. ${count} pattern disimpan ke ${zipName}.`;
+          els.batchStatus.textContent = `✅ Selesai. ${count} pattern disimpan ke ${zipName}.`;
         } catch (writeError) {
           console.warn("Failed to write via file picker, falling back to download:", writeError);
           const blob = await response.blob();
           const url = URL.createObjectURL(blob);
           download(zipName, url);
           window.setTimeout(() => URL.revokeObjectURL(url), 500);
-          els.batchStatus.textContent = `Selesai (fallback). ${count} pattern diunduh sebagai ${zipName}.`;
+          els.batchStatus.textContent = `✅ Selesai (fallback). ${count} pattern diunduh sebagai ${zipName}.`;
         }
       } else {
         const blob = await response.blob();
         const url = URL.createObjectURL(blob);
         download(zipName, url);
         window.setTimeout(() => URL.revokeObjectURL(url), 500);
-        els.batchStatus.textContent = `Selesai. ${count} pattern diunduh sebagai ${zipName}.`;
+        els.batchStatus.textContent = `✅ Selesai. ${count} pattern diunduh sebagai ${zipName}.`;
       }
     }
   } catch (error) {
-    els.batchStatus.textContent = `Gagal membuat batch: ${error.message}`;
+    if (error?.name === "AbortError") {
+      els.batchStatus.textContent = "⚠️ Batch dibatalkan.";
+    } else {
+      els.batchStatus.textContent = `❌ Gagal membuat batch: ${error.message}`;
+      console.error('Batch error:', error);
+    }
   } finally {
     els.seed.value = originalSeed;
     await drawPattern();
@@ -990,52 +1040,7 @@ async function batchDownloadByCount() {
   }
 }
 
-// ---------- BATCH DOWNLOAD BY JSON ----------
-function applySettingsFromObject(data) {
-  if (data.tileWidth) els.tileWidth.value = data.tileWidth;
-  if (data.tileHeight) els.tileHeight.value = data.tileHeight;
-  if (data.count !== undefined) els.count.value = data.count;
-  if (data.seed !== undefined) els.seed.value = data.seed;
-  if (data.baseScale !== undefined) els.baseScale.value = data.baseScale;
-  if (data.scaleVariance !== undefined) els.scaleVariance.value = data.scaleVariance;
-  if (data.rotation !== undefined) els.rotation.value = data.rotation;
-  if (data.spacing !== undefined) els.spacing.value = data.spacing;
-  if (data.jitter !== undefined) els.jitter.value = data.jitter;
-
-  if (data.allowEdgeCuts !== undefined) els.allowEdgeCuts.checked = data.allowEdgeCuts;
-
-  if (data.layout) {
-    els.layoutSelect.value = data.layout;
-  }
-
-  if (data.background) {
-    if (data.background.mode) setRadioValue(els.bgMode, data.background.mode);
-    if (data.background.color) els.bgColorPicker.value = data.background.color;
-  }
-
-  if (data.coloring) {
-    if (data.coloring.mode) setRadioValue(els.colorMode, data.coloring.mode);
-    if (data.coloring.singleColor) els.singleColorPicker.value = data.coloring.singleColor;
-    if (data.coloring.colors) els.multiColorHex.value = data.coloring.colors.join(', ');
-  }
-
-  if (data.aspectRatio) {
-    els.aspectRatio.value = data.aspectRatio;
-  }
-
-  // ✅ Tambahan: restore colorVersion jika ada
-  if (data.colorVersion !== undefined) {
-    state.colorVersion = data.colorVersion;
-  } else {
-    // Jika tidak ada, increment untuk memaksa refresh
-    state.colorVersion = (state.colorVersion || 0) + 1;
-  }
-
-  updateLabels();
-  syncHeightToWidth();
-  updateExportLabels();
-}
-
+// ---------- BATCH GENERATOR BY JSON ----------
 async function* batchGeneratorByJson(jsonData, format) {
   const mode = document.querySelector('input[name="batchMode"]:checked')?.value || 'checked';
   let sourcesToProcess;
@@ -1077,12 +1082,16 @@ async function* batchGeneratorByJson(jsonData, format) {
 
       if (format === "png" || format === "both") {
         const blob = await canvasToBlob(els.canvas);
-        if (blob) yield { name: `png/${baseName}.png`, input: blob, lastModified: new Date() };
+        if (blob) yield { 
+          name: `original/${baseName}.png`, 
+          input: blob, 
+          lastModified: new Date() 
+        };
       }
       if (format === "svg" || format === "both") {
         const svg = buildSvgMarkup(settings, state.placements);
         yield {
-          name: `svg/${baseName}.svg`,
+          name: `original/${baseName}.svg`,
           input: new Blob([svg], { type: "image/svg+xml" }),
           lastModified: new Date(),
         };
@@ -1103,17 +1112,24 @@ async function* batchGeneratorByJson(jsonData, format) {
         const seedLocal = settingsLocal.seed || (i + 1);
         const idxJson = i + 1;
         const idxSource = s + 1;
-        const baseName = `${source.name.replace(/\.svg$/i, '')}-${idxJson}-${seedLocal}`;
+        
+        const sourceFolder = source.name.replace(/\.svg$/i, '');
+        const baseName = `${sourceFolder}-${idxJson}-${seedLocal}`;
+        
         els.batchStatus.textContent = `[${idxJson}/${jsonData.length}] [${idxSource}/${sources.length}] ${source.name} (seed ${seedLocal})...`;
 
         if (format === "png" || format === "both") {
           const blob = await canvasToBlob(els.canvas);
-          if (blob) yield { name: `png/${baseName}.png`, input: blob, lastModified: new Date() };
+          if (blob) yield { 
+            name: `${sourceFolder}/${baseName}.png`, 
+            input: blob, 
+            lastModified: new Date() 
+          };
         }
         if (format === "svg" || format === "both") {
           const svg = buildSvgMarkup(settingsLocal, state.placements);
           yield {
-            name: `svg/${baseName}.svg`,
+            name: `${sourceFolder}/${baseName}.svg`,
             input: new Blob([svg], { type: "image/svg+xml" }),
             lastModified: new Date(),
           };
@@ -1129,6 +1145,51 @@ async function* batchGeneratorByJson(jsonData, format) {
   }
 }
 
+// ---------- APPLY SETTINGS FROM OBJECT ----------
+function applySettingsFromObject(data) {
+  if (data.tileWidth) els.tileWidth.value = data.tileWidth;
+  if (data.tileHeight) els.tileHeight.value = data.tileHeight;
+  if (data.count !== undefined) els.count.value = data.count;
+  if (data.seed !== undefined) els.seed.value = data.seed;
+  if (data.baseScale !== undefined) els.baseScale.value = data.baseScale;
+  if (data.scaleVariance !== undefined) els.scaleVariance.value = data.scaleVariance;
+  if (data.rotation !== undefined) els.rotation.value = data.rotation;
+  if (data.spacing !== undefined) els.spacing.value = data.spacing;
+  if (data.jitter !== undefined) els.jitter.value = data.jitter;
+
+  if (data.allowEdgeCuts !== undefined) els.allowEdgeCuts.checked = data.allowEdgeCuts;
+
+  if (data.layout) {
+    els.layoutSelect.value = data.layout;
+  }
+
+  if (data.background) {
+    if (data.background.mode) setRadioValue(els.bgMode, data.background.mode);
+    if (data.background.color) els.bgColorPicker.value = data.background.color;
+  }
+
+  if (data.coloring) {
+    if (data.coloring.mode) setRadioValue(els.colorMode, data.coloring.mode);
+    if (data.coloring.singleColor) els.singleColorPicker.value = data.coloring.singleColor;
+    if (data.coloring.colors) els.multiColorHex.value = data.coloring.colors.join(', ');
+  }
+
+  if (data.aspectRatio) {
+    els.aspectRatio.value = data.aspectRatio;
+  }
+
+  if (data.colorVersion !== undefined) {
+    state.colorVersion = data.colorVersion;
+  } else {
+    state.colorVersion = (state.colorVersion || 0) + 1;
+  }
+
+  updateLabels();
+  syncHeightToWidth();
+  updateExportLabels();
+}
+
+// ---------- BATCH DOWNLOAD BY JSON ----------
 async function batchDownloadByJson() {
   if (!state.batchJsonData || !state.batchJsonData.length) {
     els.batchStatus.textContent = "Upload file JSON terlebih dahulu.";
@@ -1153,14 +1214,19 @@ async function batchDownloadByJson() {
     if (outputMode === "individual") {
       try {
         const total = await saveFilesToFolder(batchGeneratorByJson(state.batchJsonData, format));
-        els.batchStatus.textContent = `Selesai. ${total} file disimpan ke folder.`;
+        els.batchStatus.textContent = `✅ Selesai. ${total} file disimpan ke folder.`;
       } catch (folderErr) {
-        els.batchStatus.textContent = `Gagal: ${folderErr.message}`;
+        if (folderErr.message.includes('dibatalkan')) {
+          els.batchStatus.textContent = `⚠️ ${folderErr.message}`;
+        } else {
+          els.batchStatus.textContent = `❌ Gagal: ${folderErr.message}`;
+        }
       }
     } else {
       const zipName = `batch-json-${Date.now()}.zip`;
       let handle = null;
       let useFilePicker = false;
+      
       if (window.showSaveFilePicker) {
         try {
           handle = await window.showSaveFilePicker({
@@ -1169,8 +1235,9 @@ async function batchDownloadByJson() {
           });
           useFilePicker = true;
         } catch (error) {
-          if (error?.name === "AbortError") {
-            els.batchStatus.textContent = "Batch dibatalkan.";
+          if (error?.name === "AbortError" || error?.name === "SecurityError") {
+            els.batchStatus.textContent = "⚠️ Batch dibatalkan.";
+            els.batchDownloadJsonBtn.disabled = false;
             return;
           }
           console.warn("File picker failed, falling back to download:", error);
@@ -1187,7 +1254,7 @@ async function batchDownloadByJson() {
           const writable = await handle.createWritable();
           await response.body.pipeTo(writable);
           const total = state.batchJsonData.length * sources.length;
-          els.batchStatus.textContent = `Selesai. ${total} pattern dari JSON disimpan ke ${zipName}.`;
+          els.batchStatus.textContent = `✅ Selesai. ${total} pattern dari JSON disimpan ke ${zipName}.`;
         } catch (writeError) {
           console.warn("Failed to write via file picker, falling back to download:", writeError);
           const blob = await response.blob();
@@ -1195,7 +1262,7 @@ async function batchDownloadByJson() {
           download(zipName, url);
           window.setTimeout(() => URL.revokeObjectURL(url), 500);
           const total = state.batchJsonData.length * sources.length;
-          els.batchStatus.textContent = `Selesai (fallback). ${total} pattern dari JSON diunduh sebagai ${zipName}.`;
+          els.batchStatus.textContent = `✅ Selesai (fallback). ${total} pattern dari JSON diunduh sebagai ${zipName}.`;
         }
       } else {
         const blob = await response.blob();
@@ -1203,11 +1270,16 @@ async function batchDownloadByJson() {
         download(zipName, url);
         window.setTimeout(() => URL.revokeObjectURL(url), 500);
         const total = state.batchJsonData.length * sources.length;
-        els.batchStatus.textContent = `Selesai. ${total} pattern dari JSON diunduh sebagai ${zipName}.`;
+        els.batchStatus.textContent = `✅ Selesai. ${total} pattern dari JSON diunduh sebagai ${zipName}.`;
       }
     }
   } catch (error) {
-    els.batchStatus.textContent = `Gagal membuat batch: ${error.message}`;
+    if (error?.name === "AbortError") {
+      els.batchStatus.textContent = "⚠️ Batch dibatalkan.";
+    } else {
+      els.batchStatus.textContent = `❌ Gagal membuat batch: ${error.message}`;
+      console.error('Batch error:', error);
+    }
   } finally {
     els.seed.value = originalSeed;
     await drawPattern();
@@ -1223,7 +1295,7 @@ function exportSettings() {
     ...settings,
     aspectRatio: els.aspectRatio.value,
     batchSeeds: batchSeeds,
-    colorVersion: state.colorVersion || 0, // ✅ Tambahkan ini
+    colorVersion: state.colorVersion || 0,
   };
   exportData.baseScale = Math.round(exportData.baseScale * 100);
   exportData.scaleVariance = Math.round(exportData.scaleVariance * 100);
@@ -1241,7 +1313,6 @@ function importSettings(file) {
     try {
       const data = JSON.parse(e.target.result);
 
-      // 1️⃣ CEK: Apakah data adalah array langsung?
       if (Array.isArray(data)) {
         state.batchJsonData = data;
         state.batchSeeds = [];
@@ -1250,7 +1321,6 @@ function importSettings(file) {
         return;
       }
 
-      // 2️⃣ CEK: Apakah data memiliki property 'configurations'?
       if (data.configurations && Array.isArray(data.configurations)) {
         state.batchJsonData = data.configurations;
         state.batchSeeds = [];
@@ -1260,7 +1330,6 @@ function importSettings(file) {
         return;
       }
 
-      // 3️⃣ Single settings - simpan sebagai array dengan 1 item
       state.batchJsonData = [data];
       
       applySettingsFromObject(data);
@@ -1314,7 +1383,6 @@ colorChangeListeners.forEach((el) => {
     drawPattern().catch(console.error);
   });
 });
-
 
 els.bgMode.forEach((input) => input.addEventListener("input", () => drawPattern().catch(console.error)));
 els.bgColorPicker.addEventListener("input", () => drawPattern().catch(console.error));
