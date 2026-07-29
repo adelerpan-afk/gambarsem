@@ -138,7 +138,7 @@ function getAspectRatio() {
   const value = els.aspectRatio.value;
   if (value === "1/1") return 1;      // ✅ Perbaikan: 1:1 = 1, bukan 0
   if (value === "16/9") return 16/9;  // 16:9 ≈ 1.777...
-  return 16/9; // default
+  return 1; // default
 }
 
 // ---------- SETTINGS ----------
@@ -146,7 +146,7 @@ function getSettings() {
   const width = Math.round(numberFrom(els.tileWidth));
   const aspect = getAspectRatio();
   // ✅ Validasi: pastikan aspect ratio valid
-  const height = aspect > 0 ? Math.round(width / aspect) : Math.round(width * 9 / 16);
+  const height = aspect > 0 ? Math.round(width / aspect) : Math.round(width * 1 / 1);
   const bgMode = document.querySelector('input[name="bgMode"]:checked')?.value ?? "transparent";
   const colorMode = document.querySelector('input[name="colorMode"]:checked')?.value ?? "original";
 
@@ -821,8 +821,8 @@ function syncHeightToWidth() {
   const width = Math.round(numberFrom(els.tileWidth));
   const aspect = getAspectRatio();
   if (aspect <= 0) {
-    console.warn('Aspect ratio tidak valid, menggunakan default 16:9');
-    els.tileHeight.value = Math.round(width * 9 / 16);
+    console.warn('Aspect ratio tidak valid, menggunakan default 1:1');
+    els.tileHeight.value = Math.round(width * 1);
     return;
   }
   els.tileHeight.value = Math.round(width / aspect);
@@ -832,8 +832,8 @@ function syncWidthToHeight() {
   const height = Math.round(numberFrom(els.tileHeight));
   const aspect = getAspectRatio();
   if (aspect <= 0) {
-    console.warn('Aspect ratio tidak valid, menggunakan default 16:9');
-    els.tileWidth.value = Math.round(height * 16 / 9);
+    console.warn('Aspect ratio tidak valid, menggunakan default 1:1');
+    els.tileWidth.value = Math.round(height * 1);
     return;
   }
   els.tileWidth.value = Math.round(height * aspect);
