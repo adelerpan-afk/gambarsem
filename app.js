@@ -1242,6 +1242,7 @@ function importSettings(file) {
       const data = JSON.parse(e.target.result);
 
       if (Array.isArray(data)) {
+        // Batch JSON - simpan langsung
         state.batchJsonData = data;
         state.batchSeeds = [];
         els.batchStatus.textContent = `JSON batch loaded: ${data.length} entries.`;
@@ -1249,20 +1250,24 @@ function importSettings(file) {
         return;
       }
 
+      // Single settings - simpan sebagai array dengan 1 item untuk batch
+      state.batchJsonData = [data];
+      
+      // Terapkan pengaturan ke UI
       applySettingsFromObject(data);
 
+      // Restore batch seeds jika ada
       if (data.batchSeeds && Array.isArray(data.batchSeeds)) {
         state.batchSeeds = data.batchSeeds;
       } else {
         state.batchSeeds = [];
       }
-      state.batchJsonData = null;
 
-      els.batchStatus.textContent = `Settings loaded: ${Object.keys(data).length} properties.`;
+      els.batchStatus.textContent = `✅ Settings loaded: ${Object.keys(data).length} properties. ${state.batchJsonData.length} batch entry ready.`;
       drawPattern().catch(console.error);
     } catch (err) {
       alert('File JSON tidak valid: ' + err.message);
-      els.batchStatus.textContent = 'Gagal load JSON: ' + err.message;
+      els.batchStatus.textContent = '❌ Gagal load JSON: ' + err.message;
     }
   };
   reader.readAsText(file);
