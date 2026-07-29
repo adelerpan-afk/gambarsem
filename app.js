@@ -1241,29 +1241,37 @@ function importSettings(file) {
     try {
       const data = JSON.parse(e.target.result);
 
+      // 1️⃣ CEK: Apakah data adalah array langsung?
       if (Array.isArray(data)) {
-        // Batch JSON - simpan langsung
         state.batchJsonData = data;
         state.batchSeeds = [];
-        els.batchStatus.textContent = `JSON batch loaded: ${data.length} entries.`;
-        console.log('Batch JSON loaded:', data);
+        els.batchStatus.textContent = `✅ JSON batch loaded: ${data.length} entries.`;
+        console.log('Batch JSON loaded (array):', data);
         return;
       }
 
-      // Single settings - simpan sebagai array dengan 1 item untuk batch
+      // 2️⃣ CEK: Apakah data memiliki property 'configurations'?
+      if (data.configurations && Array.isArray(data.configurations)) {
+        state.batchJsonData = data.configurations;
+        state.batchSeeds = [];
+        const total = data.total || data.configurations.length;
+        els.batchStatus.textContent = `✅ JSON batch loaded: ${data.configurations.length} entries from configurations. Total: ${total}`;
+        console.log('Batch JSON loaded from configurations:', data.configurations);
+        return;
+      }
+
+      // 3️⃣ Single settings - simpan sebagai array dengan 1 item
       state.batchJsonData = [data];
       
-      // Terapkan pengaturan ke UI
       applySettingsFromObject(data);
 
-      // Restore batch seeds jika ada
       if (data.batchSeeds && Array.isArray(data.batchSeeds)) {
         state.batchSeeds = data.batchSeeds;
       } else {
         state.batchSeeds = [];
       }
 
-      els.batchStatus.textContent = `✅ Settings loaded: ${Object.keys(data).length} properties. ${state.batchJsonData.length} batch entry ready.`;
+      els.batchStatus.textContent = `✅ Settings loaded: ${Object.keys(data).length} properties. 1 batch entry ready.`;
       drawPattern().catch(console.error);
     } catch (err) {
       alert('File JSON tidak valid: ' + err.message);
