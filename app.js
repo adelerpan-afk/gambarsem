@@ -79,6 +79,7 @@ const state = {
   skippedCount: 0,
   batchSeeds: [],
   batchJsonData: null,
+ colorVersion: 0,
 };
 
 const sampleSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 90">
@@ -293,21 +294,39 @@ function getSourceName() {
 }
 
 // ---------- MODIFIKASI SVG UNTUK MULTI COLOR PER PATH ----------
+// Fungsi ini perlu direwrite total
 function modifySvgWithMultiColors(svgText, colors, seed) {
   const parser = new DOMParser();
   const doc = parser.parseFromString(svgText, "image/svg+xml");
   const svg = doc.querySelector("svg");
   if (!svg) return svgText;
 
-  const elements = svg.querySelectorAll(
-    "path, circle, rect, ellipse, polygon, polyline, line, text"
-  );
   const random = mulberry32(seed);
-  elements.forEach((el) => {
-    const color = colors[Math.floor(random() * colors.length)];
-    el.setAttribute("fill", color);
-  });
-
+  
+  // Recursive function untuk process semua elemen
+  function processElement(el) {
+    const tagName = el.tagName.toLowerCase();
+    if (['path', 'circle', 'rect', 'ellipse', 'polygon', 'polyline', 'line', 'text', 'g'].includes(tagName)) {
+      const color = colors[Math.floor(random() * colors.length)];
+      
+      const hasFill = el.hasAttribute('fill');
+      const hasStroke = el.hasAttribute('stroke');
+      const isFillNone = el.getAttribute('fill') === 'none';
+      
+      if (!isFillNone && (hasFill || !hasStroke)) {
+        el.setAttribute('fill', color);
+      }
+      
+      if (hasStroke && el.getAttribute('stroke') !== 'none') {
+        el.setAttribute('stroke', color);
+      }
+    }
+    
+    Array.from(el.children).forEach(child => processElement(child));
+  }
+  
+  Array.from(svg.children).forEach(child => processElement(child));
+  
   const serializer = new XMLSerializer();
   return serializer.serializeToString(doc);
 }
@@ -470,43 +489,62 @@ function buildPlacements(settings) {
 }
 
 // ---------- RENDER SUMBER GAMBAR ----------
+// Fungsi ini perlu direwrite total
 async function renderSourceFor(item) {
-  if (item.renderSource) return item.renderSource;
   const settings = getSettings();
-
-  if (settings.coloring.mode === "original") {
-    item.renderSource = item.source.image;
-  } else if (settings.coloring.mode === "single") {
-    const color = item.color || settings.coloring.singleColor;
-    const off = document.createElement("canvas");
-    off.width = Math.max(1, Math.round(item.width));
-    off.height = Math.max(1, Math.round(item.height));
-    const offCtx = off.getContext("2d");
-    offCtx.drawImage(item.source.image, 0, 0, off.width, off.height);
-    offCtx.globalCompositeOperation = "source-atop";
-    offCtx.fillStyle = color;
-    offCtx.fillRect(0, 0, off.width, off.height);
-    item.renderSource = off;
-  } else if (settings.coloring.mode === "multi") {
-    const colors = settings.coloring.colors;
-    if (!colors.length) {
-      item.renderSource = item.source.image;
-    } else {
-      const seed = settings.seed + (item.id || 0);
-      const modifiedSvg = modifySvgWithMultiColors(item.source.text, colors, seed);
-      const blob = new Blob([modifiedSvg], { type: "image/svg+xml" });
-      const url = URL.createObjectURL(blob);
-      const image = new Image();
-      await new Promise((resolve, reject) => {
-        image.onload = resolve;
-        image.onerror = () => reject(new Error("Gagal memuat SVG yang dimodifikasi"));
-        image.src = url;
-      });
-      URL.revokeObjectURL(url);
-      item.renderSource = image;
-    }
+  const currentVersion = state.colorVersion || 0;
+  
+  if (item.renderSource && item._colorVersion === currentVersion) {
+    return item.renderSource;
   }
-  return item.renderSource;
+  
+  item.renderSource = null;
+  
+  try {
+    if (settings.coloring.mode === "original") {
+      item.renderSource = item.source.image;
+    } else if (settings.coloring.mode === "single") {
+      const color = item.color || settings.coloring.singleColor;
+      const off = document.createElement("canvas");
+      off.width = Math.max(1, Math.round(item.width));
+      off.height = Math.max(1, Math.round(item.height));
+      const offCtx = off.getContext("2d");
+      offCtx.drawImage(item.source.image, 0, 0, off.width, off.height);
+      offCtx.globalCompositeOperation = "source-atop";
+      offCtx.fillStyle = color;
+      offCtx.fillRect(0, 0, off.width, off.height);
+      item.renderSource = off;
+    } else if (settings.coloring.mode === "multi") {
+      const colors = settings.coloring.colors;
+      if (!colors.length) {
+        item.renderSource = item.source.image;
+      } else {
+        const seed = (settings.seed || 0) + (item.source?.id || 0) + (item.id || 0);
+        const modifiedSvg = modifySvgWithMultiColors(item.source.text, colors, seed);
+        const blob = new Blob([modifiedSvg], { type: "image/svg+xml;charset=utf-8" });
+        const url = URL.createObjectURL(blob);
+        const image = new Image();
+        await new Promise((resolve, reject) => {
+          image.onload = () => resolve();
+          image.onerror = (err) => {
+            URL.revokeObjectURL(url);
+            reject(new Error(`Gagal memuat SVG: ${err.message || ''}`));
+          };
+          image.src = url;
+        });
+        URL.revokeObjectURL(url);
+        item.renderSource = image;
+      }
+    }
+    
+    item._colorVersion = currentVersion;
+    return item.renderSource;
+  } catch (error) {
+    console.error('Error rendering:', error);
+    item.renderSource = item.source.image;
+    item._colorVersion = currentVersion;
+    return item.renderSource;
+  }
 }
 
 function drawImageItem(item, dx, dy) {
@@ -981,9 +1019,16 @@ function applySettingsFromObject(data) {
     if (data.coloring.colors) els.multiColorHex.value = data.coloring.colors.join(', ');
   }
 
-  // ✅ Tambahan: handle aspect ratio
   if (data.aspectRatio) {
     els.aspectRatio.value = data.aspectRatio;
+  }
+
+  // ✅ Tambahan: restore colorVersion jika ada
+  if (data.colorVersion !== undefined) {
+    state.colorVersion = data.colorVersion;
+  } else {
+    // Jika tidak ada, increment untuk memaksa refresh
+    state.colorVersion = (state.colorVersion || 0) + 1;
   }
 
   updateLabels();
@@ -1176,8 +1221,9 @@ function exportSettings() {
   const batchSeeds = state.batchSeeds && state.batchSeeds.length ? state.batchSeeds : [];
   const exportData = {
     ...settings,
-    aspectRatio: els.aspectRatio.value, // ✅ Tambahan: export aspect ratio
+    aspectRatio: els.aspectRatio.value,
     batchSeeds: batchSeeds,
+    colorVersion: state.colorVersion || 0, // ✅ Tambahkan ini
   };
   exportData.baseScale = Math.round(exportData.baseScale * 100);
   exportData.scaleVariance = Math.round(exportData.scaleVariance * 100);
@@ -1239,29 +1285,37 @@ function importSettings(file) {
   });
 });
 
-els.colorMode.forEach((input) => {
-  input.addEventListener("input", () => {
-    state.placements.forEach(item => delete item.renderSource);
+const colorChangeListeners = [
+  els.multiColorHex,
+  els.singleColorPicker,
+  ...els.colorMode,
+];
+
+colorChangeListeners.forEach((el) => {
+  el.addEventListener("input", () => {
+    state.colorVersion = (state.colorVersion || 0) + 1;
+    state.placements.forEach(item => {
+      delete item.renderSource;
+      delete item._colorVersion;
+    });
     drawPattern().catch(console.error);
   });
 });
-els.multiColorHex.addEventListener("input", () => {
-  state.placements.forEach(item => delete item.renderSource);
-  drawPattern().catch(console.error);
-});
-els.singleColorPicker.addEventListener("input", () => {
-  state.placements.forEach(item => delete item.renderSource);
-  drawPattern().catch(console.error);
-});
+
 
 els.bgMode.forEach((input) => input.addEventListener("input", () => drawPattern().catch(console.error)));
 els.bgColorPicker.addEventListener("input", () => drawPattern().catch(console.error));
+
 els.randomColorBtn.addEventListener("click", () => {
   const total = clamp(Math.round(numberFrom(els.count)) || 6, 3, 12);
   const colors = Array.from({ length: total }, randomHexColor);
   els.multiColorHex.value = colors.join(", ");
   setRadioValue(els.colorMode, "multi");
-  state.placements.forEach(item => delete item.renderSource);
+  state.colorVersion = (state.colorVersion || 0) + 1;
+  state.placements.forEach(item => {
+    delete item.renderSource;
+    delete item._colorVersion;
+  });
   drawPattern().catch(console.error);
 });
 
