@@ -8,22 +8,26 @@
   <link rel="stylesheet" href="./styles.css" />
   <style>
     /* ===== SIDEBAR TOGGLE ===== */
+    .workspace {
+      position: relative;
+      overflow: visible; /* biar tombol tidak terpotong */
+    }
+
     .controls {
       position: relative;
       transition: width 0.3s ease, padding 0.3s ease;
-      overflow: visible; /* biar tombol tidak terpotong */
-      width: 392px; /* default expanded */
-      padding-right: 30px; /* ruang untuk tombol */
+      width: 392px;
+      padding-right: 8px; /* ruang untuk tombol */
+      overflow: visible; /* penting agar tombol terlihat */
     }
 
-    /* Saat collapsed, sidebar menyempit */
     .controls.controls-collapsed {
       width: 56px;
       padding-left: 10px;
-      padding-right: 30px;
+      padding-right: 8px;
     }
 
-    /* Sembunyikan semua konten kecuali brand dan toggle saat collapsed */
+    /* Sembunyikan konten saat collapsed */
     .controls.controls-collapsed .brand p,
     .controls.controls-collapsed .upload-zone,
     .controls.controls-collapsed .actions,
@@ -36,85 +40,82 @@
       display: none;
     }
 
-    /* Brand mark tetap terlihat */
     .controls.controls-collapsed .brand {
       grid-template-columns: 1fr;
       justify-items: center;
       gap: 0;
       margin-top: 8px;
     }
-
     .controls.controls-collapsed .brand-mark {
       width: 36px;
       height: 36px;
       font-size: 14px;
     }
 
-    /* Toggle button */
+    /* Tombol toggle - ditempatkan di antara sidebar dan preview */
     .sidebar-toggle {
       position: absolute;
       top: 50%;
-      right: 6px; /* di dalam padding */
-      transform: translateY(-50%);
-      z-index: 10;
-      width: 28px;
-      height: 28px;
-      min-height: 28px;
+      left: 392px; /* tepat di ujung kanan sidebar */
+      transform: translateY(-50%) translateX(-50%);
+      z-index: 50;
+      width: 32px;
+      height: 32px;
+      min-height: 32px;
       padding: 0;
-      border: 1.5px solid var(--line);
+      border: 2px solid var(--line);
       border-radius: 50%;
       background: #fff;
       color: var(--ink);
-      font-size: 14px;
+      font-size: 16px;
       line-height: 1;
       cursor: pointer;
-      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
-      transition: transform 0.3s ease, background 0.2s;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.15);
+      transition: left 0.3s ease, transform 0.3s ease, background 0.2s;
       display: flex;
       align-items: center;
       justify-content: center;
     }
-
     .sidebar-toggle:hover {
       background: var(--panel);
       border-color: var(--accent);
     }
 
-    /* Saat collapsed, toggle bergeser ke kanan (tetap di posisi) */
-    .controls.controls-collapsed .sidebar-toggle {
-      right: 6px;
-      transform: translateY(-50%) rotate(180deg);
+    /* Saat collapsed, tombol bergeser ke kiri mengikuti sidebar */
+    .controls.controls-collapsed ~ .sidebar-toggle {
+      left: 56px;
+      transform: translateY(-50%) translateX(-50%) rotate(180deg);
     }
 
-    /* Hover area di tepi untuk memudahkan expand */
+    /* Hover area di sekitar tombol untuk kemudahan */
     .sidebar-toggle-area {
       position: absolute;
       top: 0;
-      right: 0;
-      width: 30px;
+      left: 392px;
+      width: 24px;
       height: 100%;
       z-index: 5;
       cursor: pointer;
       transition: background 0.2s;
-      border-radius: 0 8px 8px 0;
+      transform: translateX(-50%);
     }
-
     .sidebar-toggle-area:hover {
-      background: rgba(14, 124, 102, 0.06);
+      background: rgba(14, 124, 102, 0.08);
+    }
+    .controls.controls-collapsed ~ .sidebar-toggle-area {
+      left: 56px;
     }
 
-    /* Responsif: toggle tetap berfungsi di mobile */
+    /* Responsif */
     @media (max-width: 880px) {
       .controls {
         width: 100% !important;
         padding: 22px !important;
         transition: none;
-        padding-right: 40px !important; /* ruang untuk tombol */
       }
       .controls.controls-collapsed {
         width: 100% !important;
         padding: 12px 16px !important;
-        padding-right: 40px !important;
       }
       .controls.controls-collapsed .brand {
         grid-template-columns: 46px 1fr;
@@ -130,19 +131,6 @@
       .controls.controls-collapsed .upload-zone {
         display: grid !important;
       }
-      .sidebar-toggle {
-        right: 10px !important;
-        top: 50%;
-        transform: translateY(-50%);
-      }
-      .controls.controls-collapsed .sidebar-toggle {
-        right: 10px !important;
-        transform: translateY(-50%) rotate(180deg);
-      }
-      .sidebar-toggle-area {
-        display: none;
-      }
-      /* Di mobile, collapsed hanya menyembunyikan sebagian kecil */
       .controls.controls-collapsed .actions,
       .controls.controls-collapsed .control-grid,
       .controls.controls-collapsed .slider-list,
@@ -151,8 +139,19 @@
       .controls.controls-collapsed .color-panel {
         display: none;
       }
-      .controls.controls-collapsed .brand p {
-        font-size: 12px;
+      .sidebar-toggle {
+        left: auto !important;
+        right: 16px !important;
+        transform: translateY(-50%) !important;
+        top: 50% !important;
+      }
+      .controls.controls-collapsed ~ .sidebar-toggle {
+        left: auto !important;
+        right: 16px !important;
+        transform: translateY(-50%) rotate(180deg) !important;
+      }
+      .sidebar-toggle-area {
+        display: none;
       }
     }
 
@@ -160,16 +159,15 @@
     .workspace.sidebar-collapsed {
       grid-template-columns: 56px minmax(0, 1fr);
     }
-
     @media (max-width: 880px) {
       .workspace.sidebar-collapsed {
         grid-template-columns: 1fr;
       }
     }
 
-    /* Tambahan agar tombol tidak tertutup oleh scrollbar */
-    .controls::-webkit-scrollbar {
-      width: 4px;
+    /* Pastikan preview-sidebar tidak terpengaruh */
+    .preview-sidebar {
+      flex: 0 0 320px;
     }
   </style>
   <script src="./help-texts.js" defer></script>
@@ -178,14 +176,8 @@
 <body>
   <main class="app-shell">
     <section class="workspace" id="workspace">
-      <!-- SIDEBAR KIRI (controls) dengan toggle -->
+      <!-- SIDEBAR KIRI (controls) -->
       <aside class="controls" id="controlsSidebar" aria-label="Pengaturan pattern">
-        <!-- Tombol toggle di tepi kanan -->
-        <button class="sidebar-toggle" id="sidebarToggle" aria-label="Toggle sidebar" title="Collapse sidebar (Ctrl+B)">
-          ◀
-        </button>
-        <div class="sidebar-toggle-area" id="sidebarToggleArea" title="Klik untuk toggle sidebar"></div>
-
         <div class="brand">
           <span class="brand-mark">SP</span>
           <div>
@@ -329,6 +321,12 @@
         </fieldset>
       </aside>
 
+      <!-- TOMBOL TOGGLE (berada di antara sidebar dan preview) -->
+      <button class="sidebar-toggle" id="sidebarToggle" aria-label="Toggle sidebar" title="Collapse sidebar (Ctrl+B)">
+        ◀
+      </button>
+      <div class="sidebar-toggle-area" id="sidebarToggleArea" title="Klik untuk toggle sidebar"></div>
+
       <!-- PREVIEW PANEL UTAMA -->
       <section class="preview-panel" aria-label="Preview pattern">
         <div class="canvas-toolbar">
@@ -344,7 +342,6 @@
 
         <div id="thumbStrip" class="thumb-strip" aria-label="Daftar SVG yang diupload"></div>
 
-        <!-- BODY: kiri (canvas + repeat) dan kanan (sidebar) -->
         <div class="preview-body">
           <div class="preview-main">
             <div class="preview-layout">
@@ -503,7 +500,7 @@
       if (isCollapsed) {
         sidebar.classList.add('controls-collapsed');
         workspace.classList.add('sidebar-collapsed');
-        toggleBtn.innerHTML = '▶'; // ubah panah
+        toggleBtn.innerHTML = '▶';
         toggleBtn.title = 'Expand sidebar (Ctrl+B)';
       } else {
         toggleBtn.innerHTML = '◀';
@@ -513,9 +510,7 @@
       function toggleSidebar() {
         const collapsed = sidebar.classList.toggle('controls-collapsed');
         workspace.classList.toggle('sidebar-collapsed', collapsed);
-        // Simpan preferensi
         localStorage.setItem('sidebarCollapsed', String(collapsed));
-        // Ubah ikon panah
         toggleBtn.innerHTML = collapsed ? '▶' : '◀';
         toggleBtn.title = collapsed ? 'Expand sidebar (Ctrl+B)' : 'Collapse sidebar (Ctrl+B)';
       }
@@ -525,12 +520,10 @@
         toggleSidebar();
       });
 
-      // Klik area di tepi sidebar juga bisa toggle
       if (toggleArea) {
         toggleArea.addEventListener('click', toggleSidebar);
       }
 
-      // Keyboard shortcut: Ctrl + B
       document.addEventListener('keydown', function(e) {
         if ((e.ctrlKey || e.metaKey) && (e.key === 'b' || e.key === 'B')) {
           e.preventDefault();
