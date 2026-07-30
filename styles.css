@@ -1,0 +1,805 @@
+:root {
+  color-scheme: light;
+  --ink: #182026;
+  --muted: #5e6872;
+  --line: #d7dee3;
+  --panel: #f8faf9;
+  --paper: #ffffff;
+  --accent: #0e7c66;
+  --accent-dark: #075f4d;
+  --warm: #e0a458;
+  --rose: #d65f68;
+  --shadow: 0 18px 55px rgba(24, 32, 38, 0.12);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  color: var(--ink);
+  font-family:
+    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+    sans-serif;
+  background: #edf2ef;
+}
+
+button,
+input {
+  font: inherit;
+}
+
+.app-shell {
+  min-height: 100vh;
+  padding: 24px;
+}
+
+.workspace {
+  display: grid;
+  grid-template-columns: minmax(312px, 392px) minmax(0, 1fr);
+  min-height: calc(100vh - 48px);
+  overflow: hidden;
+  background: var(--paper);
+  border: 1px solid rgba(24, 32, 38, 0.08);
+  box-shadow: var(--shadow);
+}
+
+.controls {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 22px;
+  overflow: auto;
+  background: var(--panel);
+  border-right: 1px solid var(--line);
+}
+
+.brand {
+  display: grid;
+  grid-template-columns: 46px 1fr;
+  gap: 12px;
+  align-items: center;
+}
+
+.brand-mark {
+  display: grid;
+  width: 46px;
+  height: 46px;
+  place-items: center;
+  color: #fff;
+  font-weight: 800;
+  background: var(--accent);
+  border-radius: 8px;
+}
+
+h1,
+h2,
+p {
+  margin: 0;
+}
+
+h1 {
+  font-size: 22px;
+  line-height: 1.1;
+}
+
+.brand p,
+.canvas-toolbar p,
+.upload-zone small,
+.math-note span {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.upload-zone {
+  display: grid;
+  gap: 8px;
+  padding: 18px;
+  text-align: center;
+  cursor: pointer;
+  border: 1.5px dashed #9fb0ac;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.upload-zone input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.upload-icon {
+  display: grid;
+  width: 38px;
+  height: 38px;
+  margin: 0 auto;
+  place-items: center;
+  color: #fff;
+  font-size: 28px;
+  line-height: 1;
+  background: var(--warm);
+  border-radius: 8px;
+}
+
+.control-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.control-grid label,
+.slider-list label {
+  display: grid;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.control-grid input {
+  width: 100%;
+  height: 38px;
+  padding: 0 10px;
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.slider-list {
+  display: grid;
+  gap: 14px;
+}
+
+.slider-list span {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+output {
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+input[type="range"] {
+  width: 100%;
+  accent-color: var(--accent);
+}
+
+.option-row {
+  display: grid;
+  gap: 10px;
+}
+
+.distribution-panel {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px 12px;
+  margin: 0;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.distribution-panel legend {
+  padding: 0 4px;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.switch {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--ink);
+  font-size: 14px;
+}
+
+.switch input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--accent);
+}
+
+.actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.actions.single {
+  grid-template-columns: 1fr;
+}
+
+button {
+  min-height: 40px;
+  padding: 0 14px;
+  color: var(--ink);
+  cursor: pointer;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+}
+
+button:hover {
+  border-color: #8ca6a0;
+}
+
+button.primary {
+  color: #fff;
+  border-color: var(--accent);
+  background: var(--accent);
+}
+
+button.primary:hover {
+  background: var(--accent-dark);
+}
+
+.stats-panel,
+.math-note {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  background: #fff;
+}
+
+.stats-panel {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.stats-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.stats-heading h2 {
+  font-size: 15px;
+}
+
+.stats-heading span {
+  color: var(--accent);
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.coverage-track {
+  height: 8px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #e7ece9;
+}
+
+.coverage-bar {
+  display: block;
+  width: 0%;
+  height: 100%;
+  border-radius: inherit;
+  background: #94a3aa;
+  transition:
+    width 180ms ease,
+    background-color 180ms ease;
+}
+
+.coverage-bar.coverage-good {
+  background: #1f9d68;
+}
+
+.coverage-bar.coverage-warn {
+  background: #dca341;
+}
+
+.coverage-bar.coverage-danger {
+  background: #cf4c57;
+}
+
+.stats-list {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+}
+
+.stats-list div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding-top: 8px;
+  border-top: 1px solid #edf1ef;
+}
+
+.stats-list dt {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.stats-list dd {
+  margin: 0;
+  text-align: right;
+  font-size: 12px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.math-note {
+  border-left: 4px solid var(--rose);
+}
+
+.preview-panel {
+  display: grid;
+  grid-template-rows: auto auto 1fr;
+  min-width: 0;
+  background:
+    linear-gradient(90deg, rgba(24, 32, 38, 0.055) 1px, transparent 1px),
+    linear-gradient(rgba(24, 32, 38, 0.055) 1px, transparent 1px),
+    #f4f7f5;
+  background-size: 32px 32px;
+}
+
+.canvas-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px 22px;
+  background: rgba(255, 255, 255, 0.82);
+  border-bottom: 1px solid var(--line);
+  backdrop-filter: blur(14px);
+}
+
+.canvas-toolbar h2 {
+  font-size: 18px;
+}
+
+.zoom-control {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 190px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+/* Layout baru: tile canvas di atas, repeat preview di bawah */
+.preview-layout {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding: 20px;
+  min-height: 0;
+  flex: 1;
+  overflow: auto;
+}
+
+.tile-canvas-container {
+  flex: 0 0 auto;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: rgba(255, 255, 255, 0.4);
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  min-height: 200px;
+}
+
+.tile-frame {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  max-width: 100%;
+  border: 1px solid rgba(14, 124, 102, 0.7);
+  background: rgba(255, 255, 255, 0.25);
+  aspect-ratio: 16 / 9;
+}
+
+.tile-frame.hidden-border {
+  border-color: transparent;
+}
+
+#tileCanvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.repeat-preview-container {
+  flex: 1 1 auto;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: rgba(255, 255, 255, 0.4);
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  min-height: 200px;
+  overflow: auto;
+}
+
+.repeat-preview {
+  width: 100%;
+  height: 100%;
+  background: rgba(255, 255, 255, 0.2);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  /* konten akan diisi oleh JS, misalnya canvas atau gambar */
+}
+
+/* thumb strip */
+.thumb-strip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 22px;
+  height: 62px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  background: rgba(255, 255, 255, 0.82);
+  border-bottom: 1px solid var(--line);
+}
+
+.thumb-strip:empty {
+  display: none;
+}
+
+.thumb-item {
+  position: relative;
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 6px;
+  height: 38px;
+  padding: 4px 8px 4px 4px;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+}
+
+.thumb-preview {
+  display: grid;
+  flex: 0 0 auto;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  overflow: hidden;
+  background-image:
+    linear-gradient(45deg, #e7ece9 25%, transparent 25%),
+    linear-gradient(-45deg, #e7ece9 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #e7ece9 75%),
+    linear-gradient(-45deg, transparent 75%, #e7ece9 75%);
+  background-size: 10px 10px;
+  background-position: 0 0, 0 5px, 5px -5px, -5px 0;
+  border-radius: 999px;
+}
+
+.thumb-preview img {
+  max-width: 100%;
+  max-height: 100%;
+}
+
+.thumb-remove {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  z-index: 1;
+  display: grid;
+  width: 16px;
+  height: 16px;
+  min-height: 0;
+  padding: 0;
+  place-items: center;
+  color: #fff;
+  font-size: 11px;
+  line-height: 1;
+  border: 1px solid #fff;
+  border-radius: 999px;
+  background: var(--rose);
+}
+
+.thumb-check {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.thumb-check input {
+  flex: 0 0 auto;
+  width: 14px;
+  height: 14px;
+  accent-color: var(--accent);
+}
+
+.thumb-name {
+  overflow: hidden;
+  max-width: 96px;
+  color: var(--muted);
+  font-size: 11px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.bg-panel,
+.color-panel {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.bg-panel legend,
+.color-panel legend {
+  padding: 0 4px;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.bg-color-switch {
+  justify-content: space-between;
+}
+
+.bg-color-switch input[type="color"] {
+  width: 34px;
+  height: 26px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: none;
+  cursor: pointer;
+}
+
+.color-panel small {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.multi-color-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+}
+
+.multi-color-row input[type="text"] {
+  height: 38px;
+  padding: 0 10px;
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.multi-color-row button {
+  white-space: nowrap;
+}
+
+.batch-panel {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.batch-panel h2 {
+  font-size: 15px;
+}
+
+.batch-status {
+  min-height: 16px;
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+@media (max-width: 880px) {
+  .app-shell {
+    padding: 0;
+  }
+
+  .workspace {
+    grid-template-columns: 1fr;
+    min-height: 100vh;
+    border: 0;
+  }
+
+  .controls {
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .canvas-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .zoom-control {
+    min-width: 0;
+  }
+
+  .preview-layout {
+    padding: 12px;
+    gap: 12px;
+  }
+
+  .tile-canvas-container,
+  .repeat-preview-container {
+    min-height: 150px;
+  }
+}
+
+/* ===== HELP BADGE ===== */
+.help-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  margin-left: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #fff;
+  cursor: help;
+  background: #8ca6a0;
+  border-radius: 50%;
+  transition: background 0.2s;
+  position: relative; /* agar tooltip positioning relatif terhadap badge */
+  flex-shrink: 0; /* tidak mengecil */
+  vertical-align: middle; /* menjaga posisi di tengah teks */
+}
+
+.help-badge:hover {
+  background: var(--accent);
+}
+
+/* Tooltip custom - muncul di atas badge */
+.help-badge[data-tooltip]:hover::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  z-index: 999;
+  max-width: 280px;
+  padding: 8px 12px;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.4;
+  background: rgba(24, 32, 38, 0.92);
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  white-space: normal;
+  pointer-events: none;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+/* Panah tooltip */
+.help-badge[data-tooltip]:hover::before {
+  content: '';
+  position: absolute;
+  z-index: 999;
+  bottom: calc(100% + 2px);
+  left: 50%;
+  transform: translateX(-50%);
+  border: 6px solid transparent;
+  border-top-color: rgba(24, 32, 38, 0.92);
+  pointer-events: none;
+}
+
+/* Pastikan label yang memiliki badge tidak terpengaruh */
+label > .help-badge,
+.switch > .help-badge,
+.slider-list label > .help-badge,
+.control-grid label > .help-badge {
+  display: inline-flex;
+  vertical-align: middle;
+}
+
+
+    /* === TAMBAHAN UNTUK LAYOUT SIDEBAR KANAN === */
+    .preview-body {
+      display: flex;
+      flex: 1;
+      gap: 20px;
+      padding: 20px;
+      min-height: 0;
+      overflow: auto;
+    }
+
+    .preview-main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      min-width: 0;
+    }
+
+    .preview-sidebar {
+      flex: 0 0 320px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      overflow-y: auto;
+      padding-right: 4px;
+      max-height: 100%;
+    }
+
+    /* Responsif: sidebar pindah ke bawah pada layar kecil */
+    @media (max-width: 880px) {
+      .preview-body {
+        flex-direction: column;
+        padding: 12px;
+        gap: 12px;
+      }
+      .preview-sidebar {
+        flex: 1 1 auto;
+        width: 100%;
+        max-height: none;
+        padding-right: 0;
+      }
+    }
+
+    /* Pastikan elemen di sidebar tidak melebar */
+    .preview-sidebar .actions {
+      grid-template-columns: 1fr 1fr;
+    }
+
+    .preview-sidebar .batch-panel,
+    .preview-sidebar .stats-panel,
+    .preview-sidebar .math-note {
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 12px;
+    }
+
+    .preview-sidebar .math-note {
+      border-left: 4px solid var(--rose);
+    }
+
+    /* Penyesuaian untuk preview-layout agar fleksibel */
+    .preview-layout {
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      flex: 1;
+      min-height: 0;
+    }
+
+    .tile-canvas-container {
+      flex: 0 0 auto;
+      min-height: 200px;
+    }
+
+    .repeat-preview-container {
+      flex: 1 1 auto;
+      min-height: 150px;
+    }
+
+    /* Hilangkan padding berlebih di preview-panel */
+    .preview-panel {
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+      background:
+        linear-gradient(90deg, rgba(24, 32, 38, 0.055) 1px, transparent 1px),
+        linear-gradient(rgba(24, 32, 38, 0.055) 1px, transparent 1px),
+        #f4f7f5;
+      background-size: 32px 32px;
+    }

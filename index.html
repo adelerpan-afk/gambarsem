@@ -1,0 +1,556 @@
+<!doctype html>
+<html lang="id">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Seamless Pattern Generator</title>
+  <link rel="stylesheet" href="./styles.css" />
+  <style>
+    /* ===== SIDEBAR TOGGLE ===== */
+    .controls {
+      position: relative;
+      transition: width 0.3s ease, padding 0.3s ease;
+      overflow: hidden;
+      width: 392px; /* default expanded */
+    }
+
+    /* Saat collapsed, sidebar menyempit */
+    .controls.controls-collapsed {
+      width: 56px;
+      padding-left: 10px;
+      padding-right: 10px;
+    }
+
+    /* Sembunyikan semua konten kecuali brand dan toggle saat collapsed */
+    .controls.controls-collapsed .brand p,
+    .controls.controls-collapsed .upload-zone,
+    .controls.controls-collapsed .actions,
+    .controls.controls-collapsed .control-grid,
+    .controls.controls-collapsed .slider-list,
+    .controls.controls-collapsed .option-row,
+    .controls.controls-collapsed .bg-panel,
+    .controls.controls-collapsed .color-panel,
+    .controls.controls-collapsed .brand div {
+      display: none;
+    }
+
+    /* Brand mark tetap terlihat */
+    .controls.controls-collapsed .brand {
+      grid-template-columns: 1fr;
+      justify-items: center;
+      gap: 0;
+      margin-top: 8px;
+    }
+
+    .controls.controls-collapsed .brand-mark {
+      width: 36px;
+      height: 36px;
+      font-size: 14px;
+    }
+
+    /* Toggle button */
+    .sidebar-toggle {
+      position: absolute;
+      top: 50%;
+      right: -14px;
+      transform: translateY(-50%);
+      z-index: 10;
+      width: 28px;
+      height: 28px;
+      min-height: 28px;
+      padding: 0;
+      border: 1.5px solid var(--line);
+      border-radius: 50%;
+      background: #fff;
+      color: var(--ink);
+      font-size: 14px;
+      line-height: 1;
+      cursor: pointer;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+      transition: transform 0.3s ease, background 0.2s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .sidebar-toggle:hover {
+      background: var(--panel);
+      border-color: var(--accent);
+    }
+
+    /* Saat collapsed, toggle bergeser ke kanan */
+    .controls.controls-collapsed .sidebar-toggle {
+      right: -14px;
+      transform: translateY(-50%) rotate(180deg);
+    }
+
+    /* Hover area di tepi untuk memudahkan expand */
+    .sidebar-toggle-area {
+      position: absolute;
+      top: 0;
+      right: -8px;
+      width: 16px;
+      height: 100%;
+      z-index: 5;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .sidebar-toggle-area:hover {
+      background: rgba(14, 124, 102, 0.06);
+    }
+
+    /* Responsif: toggle tetap berfungsi di mobile */
+    @media (max-width: 880px) {
+      .controls {
+        width: 100% !important;
+        padding: 22px !important;
+        transition: none;
+      }
+      .controls.controls-collapsed {
+        width: 100% !important;
+        padding: 12px 16px !important;
+      }
+      .controls.controls-collapsed .brand {
+        grid-template-columns: 46px 1fr;
+        justify-items: start;
+        gap: 12px;
+      }
+      .controls.controls-collapsed .brand div {
+        display: block !important;
+      }
+      .controls.controls-collapsed .brand p {
+        display: block !important;
+      }
+      .controls.controls-collapsed .upload-zone {
+        display: grid !important;
+      }
+      .sidebar-toggle {
+        right: 12px;
+        top: 50%;
+        transform: translateY(-50%);
+      }
+      .controls.controls-collapsed .sidebar-toggle {
+        right: 12px;
+        transform: translateY(-50%) rotate(180deg);
+      }
+      .sidebar-toggle-area {
+        display: none;
+      }
+      /* Di mobile, collapsed hanya menyembunyikan sebagian kecil */
+      .controls.controls-collapsed .actions,
+      .controls.controls-collapsed .control-grid,
+      .controls.controls-collapsed .slider-list,
+      .controls.controls-collapsed .option-row,
+      .controls.controls-collapsed .bg-panel,
+      .controls.controls-collapsed .color-panel {
+        display: none;
+      }
+      .controls.controls-collapsed .brand p {
+        font-size: 12px;
+      }
+    }
+
+    /* Saat collapsed, workspace menyesuaikan */
+    .workspace.sidebar-collapsed {
+      grid-template-columns: 56px minmax(0, 1fr);
+    }
+
+    @media (max-width: 880px) {
+      .workspace.sidebar-collapsed {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+  <script src="./help-texts.js" defer></script>
+</head>
+
+<body>
+  <main class="app-shell">
+    <section class="workspace" id="workspace">
+      <!-- SIDEBAR KIRI (controls) dengan toggle -->
+      <aside class="controls" id="controlsSidebar" aria-label="Pengaturan pattern">
+        <!-- Tombol toggle di tepi kanan -->
+        <button class="sidebar-toggle" id="sidebarToggle" aria-label="Toggle sidebar" title="Expand / Collapse">
+          ◀
+        </button>
+        <div class="sidebar-toggle-area" id="sidebarToggleArea" title="Klik untuk toggle sidebar"></div>
+
+        <div class="brand">
+          <span class="brand-mark">SP</span>
+          <div>
+            <h1>Seamless Pattern</h1>
+            <p>Upload SVG (bisa lebih dari satu), atur sebaran, lalu generate tile yang berulang mulus.</p>
+          </div>
+        </div>
+
+        <label class="upload-zone" for="svgFile">
+          <input id="svgFile" type="file" accept=".svg,image/svg+xml" multiple />
+          <span class="upload-icon">+</span>
+          <strong id="fileName">Pilih file SVG (bisa banyak)</strong>
+          <small>Objek akan dihitung otomatis ketika melewati batas tile.</small>
+        </label>
+
+        <div class="actions" style="margin-top: 6px; gap: 6px;">
+          <button id="checkAllBtn" type="button" class="secondary" style="flex:1;">✅ Check All</button>
+          <button id="uncheckAllBtn" type="button" class="secondary" style="flex:1;">⬜ Uncheck All</button>
+          <button id="resetFilesBtn" type="button" class="danger" style="flex:1;">🗑 Reset</button>
+        </div>
+
+        <div class="control-grid">
+          <label>
+            <span data-help="tileWidth">Lebar canvas</span>
+            <input id="tileWidth" type="number" min="640" max="7680" step="16" value="3840" />
+          </label>
+          <label>
+            <span data-help="tileHeight">Tinggi canvas</span>
+            <input id="tileHeight" type="number" min="360" max="4320" step="9" value="2160" />
+          </label>
+          <label style="grid-column: span 2;">
+            <span data-help="aspectRatio">Aspect Ratio</span>
+            <select id="aspectRatio" style="width:100%; padding:6px; border-radius:8px; border:1px solid var(--line);">
+              <option value="16/9">16:9</option>
+              <option value="1/1" selected>1:1</option>
+            </select>
+          </label>
+          <label>
+            <span data-help="count">Jumlah objek</span>
+            <input id="count" type="number" min="1" max="160" step="1" value="28" />
+          </label>
+          <label>
+            <span data-help="seed">Seed</span>
+            <input id="seed" type="number" min="1" max="999999" step="1" value="1842" />
+          </label>
+        </div>
+
+        <div class="slider-list">
+          <label>
+            <span data-help="baseScale">Skala dasar <output id="baseScaleValue">26%</output></span>
+            <input id="baseScale" type="range" min="5" max="80" value="26" />
+          </label>
+          <label>
+            <span data-help="scaleVariance">Variasi ukuran <output id="scaleVarianceValue">42%</output></span>
+            <input id="scaleVariance" type="range" min="0" max="100" value="42" />
+          </label>
+          <label>
+            <span data-help="rotation">Rotasi acak <output id="rotationValue">180 deg</output></span>
+            <input id="rotation" type="range" min="0" max="180" value="180" />
+          </label>
+          <label>
+            <span data-help="spacing">Jarak minimum <output id="spacingValue">44 px</output></span>
+            <input id="spacing" type="range" min="0" max="180" value="44" />
+          </label>
+          <label>
+            <span data-help="jitter">Jitter grid <output id="jitterValue">70%</output></span>
+            <input id="jitter" type="range" min="0" max="100" value="70" />
+          </label>
+          <label>
+            <span data-help="repeatCount">Jumlah repeat <output id="repeatCountValue">2</output></span>
+            <input id="repeatCount" type="range" min="1" max="5" value="2" />
+          </label>
+        </div>
+
+        <div class="option-row">
+          <fieldset class="distribution-panel">
+            <legend>Distribution</legend>
+            <label style="grid-column: span 2; display: flex; gap: 8px; align-items: center; margin-top: 4px;">
+              <span style="font-weight:600;" data-help="layout">Layout</span>
+              <select id="layoutSelect" style="flex:1; padding:6px; border-radius:6px; border:1px solid var(--line);">
+                <option value="neat-grid">Neat Grid</option>
+                <option value="diagonal-flow">Diagonal Flow</option>
+                <option value="radial-center">Radial from Center</option>
+                <option value="tossed">Tossed</option>
+                <option value="scattered">Scattered</option>
+                <option value="stripe">Stripe</option>
+                <option value="all-over">All-Over</option>
+              </select>
+            </label>
+          </fieldset>
+          <fieldset class="distribution-panel">
+            <legend>Izin Distribusi</legend>
+            <label class="switch">
+              <input id="randomMode" type="checkbox" checked />
+              <span data-help="randomMode">Random pattern</span>
+            </label>
+            <label class="switch">
+              <input id="allowEdgeCuts" type="checkbox" checked />
+              <span data-help="allowEdgeCuts">Izinkan potong tepi</span>
+            </label>
+            <label class="switch">
+              <input id="showTile" type="checkbox" checked />
+              <span data-help="showTile">Tampilkan batas tile</span>
+            </label>
+          </fieldset>
+        </div>
+
+        <fieldset class="bg-panel">
+          <legend>Background</legend>
+          <label class="switch">
+            <input type="radio" name="bgMode" value="transparent" checked />
+            <span data-help="bgMode">Transparan</span>
+          </label>
+          <label class="switch bg-color-switch">
+            <input type="radio" name="bgMode" value="color" />
+            <span data-help="bgMode">Warna</span>
+            <input id="bgColorPicker" type="color" value="#ffffff" data-help="bgColorPicker" />
+          </label>
+        </fieldset>
+
+        <fieldset class="color-panel">
+          <legend>Pewarnaan Objek</legend>
+          <label class="switch">
+            <input type="radio" name="colorMode" value="original" checked />
+            <span data-help="colorMode">Warna asli SVG</span>
+          </label>
+          <label class="switch bg-color-switch">
+            <input type="radio" name="colorMode" value="single" />
+            <span data-help="colorMode">Satu warna</span>
+            <input id="singleColorPicker" type="color" value="#0e7c66" data-help="singleColorPicker" />
+          </label>
+          <label class="switch">
+            <input type="radio" name="colorMode" value="multi" />
+            <span data-help="colorMode">Warna-warni</span>
+          </label>
+          <div class="multi-color-row">
+            <input id="multiColorHex" type="text" placeholder="#ff0000, #00c2ff, #ffd23f" data-help="multiColorHex" />
+            <button id="randomColorBtn" type="button" title="Isi otomatis dengan warna acak" data-help="randomColorBtn">🎲 Random</button>
+          </div>
+          <small>Pisahkan tiap kode hex dengan koma. Dipakai saat mode "Warna-warni" aktif.</small>
+        </fieldset>
+      </aside>
+
+      <!-- PREVIEW PANEL UTAMA -->
+      <section class="preview-panel" aria-label="Preview pattern">
+        <div class="canvas-toolbar">
+          <div>
+            <h2>Preview</h2>
+            <p id="statusText">Upload SVG untuk mulai membuat pattern 16:9.</p>
+          </div>
+          <div class="zoom-control">
+            <label for="previewScale">Zoom</label>
+            <input id="previewScale" type="range" min="8" max="60" value="18" />
+          </div>
+        </div>
+
+        <div id="thumbStrip" class="thumb-strip" aria-label="Daftar SVG yang diupload"></div>
+
+        <!-- BODY: kiri (canvas + repeat) dan kanan (sidebar) -->
+        <div class="preview-body">
+          <div class="preview-main">
+            <div class="preview-layout">
+              <div class="tile-canvas-container">
+                <div id="tileFrame" class="tile-frame">
+                  <canvas id="tileCanvas" width="3840" height="2160"></canvas>
+                </div>
+              </div>
+              <div class="repeat-preview-container">
+                <div id="repeatPreview" class="repeat-preview"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- SIDEBAR KANAN -->
+          <aside class="preview-sidebar" aria-label="Aksi dan Statistik">
+            <div class="actions">
+              <button id="generateBtn" class="primary" type="button" data-help="generateBtn">Generate</button>
+              <button id="autoLayoutBtn" type="button" data-help="autoLayoutBtn">Auto Layout</button>
+            </div>
+
+            <div class="actions">
+              <button id="sampleBtn" type="button" data-help="sampleBtn">Contoh SVG</button>
+              <button id="shuffleBtn" type="button" data-help="shuffleBtn">Acak Seed</button>
+            </div>
+
+            <div class="actions">
+              <button id="downloadPngBtn" type="button" data-help="downloadPngBtn">Download PNG 4K</button>
+              <button id="downloadSvgBtn" type="button" data-help="downloadSvgBtn">Download SVG 4K</button>
+            </div>
+
+            <section class="batch-panel" aria-label="Batch download">
+              <h2>Batch Download</h2>
+              <div class="control-grid">
+                <label>
+                  <span data-help="batchCount">Jumlah gambar</span>
+                  <input id="batchCount" type="number" min="1" max="500" step="1" value="5" />
+                </label>
+                <label>
+                  <span data-help="batchFormat">Format</span>
+                  <select id="batchFormat">
+                    <option value="png">PNG</option>
+                    <option value="svg">SVG</option>
+                    <option value="both" selected>SVG + PNG</option>
+                  </select>
+                </label>
+              </div>
+
+              <div class="control-grid" style="margin-top: 6px;">
+                <fieldset class="batch-mode-group" style="border:none;padding:0;display:flex;gap:12px;flex-wrap:wrap;">
+                  <legend style="font-weight:bold;font-size:0.9em;width:100%;">Mode Batch (JSON)</legend>
+                  <label class="switch">
+                    <input type="radio" name="batchMode" value="checked" checked />
+                    <span data-help="batchMode">Checked (aktif)</span>
+                  </label>
+                  <label class="switch">
+                    <input type="radio" name="batchMode" value="all" />
+                    <span data-help="batchMode">All files</span>
+                  </label>
+                  <label class="switch">
+                    <input type="radio" name="batchMode" value="original" />
+                    <span data-help="batchMode">Original (combined)</span>
+                  </label>
+                  <label>
+                    <span data-help="batchOutputMode">Output mode</span>
+                    <select id="batchOutputMode" data-help="batchOutputMode">
+                      <option value="zip">Zip archive</option>
+                      <option value="individual">Individual files</option>
+                    </select>
+                  </label>
+                </fieldset>
+              </div>
+
+              <div class="actions" style="margin-top: 6px; gap: 6px; flex-wrap: wrap;">
+                <button id="batchDownloadCountBtn" type="button" class="primary" style="flex:1;" data-help="batchDownloadCountBtn">📦 Batch by Count</button>
+                <button id="batchDownloadJsonBtn" type="button" class="primary" style="flex:1;" data-help="batchDownloadJsonBtn">📦 Batch by JSON</button>
+              </div>
+
+              <div class="actions" style="margin-top: 6px; gap: 6px; flex-wrap: wrap;">
+                <button id="exportJsonBtn" type="button" class="secondary" style="flex:1;" data-help="exportJsonBtn">📥 Download Settings (JSON)</button>
+                <label class="upload-zone" style="flex:1; padding:4px 8px; background:#eee; border-radius:4px; cursor:pointer; text-align:center; margin:0;" data-help="importJsonInput">
+                  <input id="importJsonInput" type="file" accept=".json" style="display:none;" />
+                  📤 Load Settings (JSON)
+                </label>
+              </div>
+
+              <p id="batchStatus" class="batch-status"></p>
+            </section>
+
+            <section class="stats-panel" aria-label="Pattern Statistics">
+              <div class="stats-heading">
+                <h2>Pattern Statistics</h2>
+                <span id="coverageLabel" data-help="coverageLabel">0%</span>
+              </div>
+              <div class="coverage-track" aria-hidden="true">
+                <span id="coverageBar" class="coverage-bar"></span>
+              </div>
+              <dl class="stats-list">
+                <div>
+                  <dt>Coverage</dt>
+                  <dd id="statCoverage">0%</dd>
+                </div>
+                <div>
+                  <dt>Jumlah Object</dt>
+                  <dd id="statObjectCount">0</dd>
+                </div>
+                <div>
+                  <dt>Average Distance</dt>
+                  <dd id="statAverageDistance">0 px</dd>
+                </div>
+                <div>
+                  <dt>Duplicate Edge Object</dt>
+                  <dd id="statDuplicateEdge">0</dd>
+                </div>
+                <div>
+                  <dt>Largest Object</dt>
+                  <dd id="statLargest">0 px2</dd>
+                </div>
+                <div>
+                  <dt>Smallest Object</dt>
+                  <dd id="statSmallest">0 px2</dd>
+                </div>
+                <div>
+                  <dt>Canvas Size</dt>
+                  <dd id="statCanvasSize">3840 x 2160</dd>
+                </div>
+              </dl>
+            </section>
+
+            <div class="math-note">
+              <strong>Rumus wrap</strong>
+              <span>Objek diuji pada offset -W, 0, +W dan -H, 0, +H. Collision memakai SAT supaya ukuran, rotasi, dan scale ikut dihitung.</span>
+            </div>
+          </aside>
+        </div>
+      </section>
+    </section>
+  </main>
+
+  <script src="./collision.js"></script>
+  <script src="./distribution.js"></script>
+  <script src="./stats.js"></script>
+  <script src="./help-texts.js"></script>
+  <script>
+    // ===== SIDEBAR TOGGLE =====
+    (function() {
+      const sidebar = document.getElementById('controlsSidebar');
+      const workspace = document.getElementById('workspace');
+      const toggleBtn = document.getElementById('sidebarToggle');
+      const toggleArea = document.getElementById('sidebarToggleArea');
+
+      if (!sidebar || !workspace || !toggleBtn) return;
+
+      // Cek preferensi tersimpan
+      const isCollapsed = localStorage.getItem('sidebarCollapsed') === 'true';
+      if (isCollapsed) {
+        sidebar.classList.add('controls-collapsed');
+        workspace.classList.add('sidebar-collapsed');
+      }
+
+      function toggleSidebar() {
+        const collapsed = sidebar.classList.toggle('controls-collapsed');
+        workspace.classList.toggle('sidebar-collapsed', collapsed);
+        // Simpan preferensi
+        localStorage.setItem('sidebarCollapsed', String(collapsed));
+      }
+
+      toggleBtn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        toggleSidebar();
+      });
+
+      // Klik area di tepi sidebar juga bisa toggle
+      if (toggleArea) {
+        toggleArea.addEventListener('click', toggleSidebar);
+      }
+
+      // Keyboard shortcut: Ctrl + B
+      document.addEventListener('keydown', function(e) {
+        if ((e.ctrlKey || e.metaKey) && e.key === 'b') {
+          e.preventDefault();
+          toggleSidebar();
+        }
+      });
+
+      // Update tooltip
+      function updateTooltip() {
+        const collapsed = sidebar.classList.contains('controls-collapsed');
+        toggleBtn.title = collapsed ? 'Expand sidebar (Ctrl+B)' : 'Collapse sidebar (Ctrl+B)';
+      }
+      updateTooltip();
+
+      // Observer untuk update tooltip saat class berubah
+      const observer = new MutationObserver(function(mutations) {
+        mutations.forEach(function(mutation) {
+          if (mutation.attributeName === 'class') {
+            updateTooltip();
+          }
+        });
+      });
+      observer.observe(sidebar, { attributes: true });
+
+      // Sesuaikan lebar saat resize
+      function adjustForMobile() {
+        const isMobile = window.innerWidth <= 880;
+        if (isMobile) {
+          // Di mobile, jangan sembunyikan brand text
+          // Tapi tetap biarkan toggle bekerja
+        }
+      }
+      window.addEventListener('resize', adjustForMobile);
+      adjustForMobile();
+    })();
+  </script>
+  <script src="./app.js"></script>
+</body>
+
+</html>
