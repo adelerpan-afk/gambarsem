@@ -1306,44 +1306,98 @@ function importSettings(file) {
   reader.readAsText(file);
 }
 
-/* ---------- HELP TOOLTIP INIT ---------- */
+/* ============================================================
+   HELP BADGE
+   ============================================================ */
+
+/**
+ * Buat elemen badge "?" yang siap di-append ke target.
+ */
+function createHelpBadge(text) {
+  const badge = document.createElement("span");
+  badge.className = "help-badge";
+  badge.textContent = "?";
+  badge.dataset.tooltip = text;
+  badge.setAttribute("role", "img");
+  badge.setAttribute("aria-label", text);
+  badge.tabIndex = 0;
+  return badge;
+}
+
+/**
+ * Inisialisasi help badge.
+ * Strategi: sisipkan badge DI DALAM text element, bukan sebagai sibling,
+ * supaya tidak mengganggu layout grid/flex.
+ */
 function initHelpTooltips() {
-  document.querySelectorAll("[data-help]").forEach((el) => {
+  // Bersihkan badge lama (idempotent)
+  document.querySelectorAll(".help-badge").forEach((b) => b.remove());
+
+  const helpTexts = window.HELP_TEXTS || {};
+  const hasTexts = Object.keys(helpTexts).length > 0;
+  if (!hasTexts) {
+    console.warn("[HelpBadge] window.HELP_TEXTS kosong atau tidak ter-load. Tooltip akan generic.");
+  }
+
+  const elements = document.querySelectorAll("[data-help]");
+  let created = 0;
+
+  elements.forEach((el) => {
     const key = el.dataset.help;
-    const text = window.HELP_TEXTS?.[key] || "Tidak ada keterangan.";
+    const text = helpTexts[key] || `Info: ${key}`;
+
+    // ------------------------------------------------------------------
+    // KASUS 1: el adalah <span data-help="..."> → sisipkan badge DI DALAM span
+    //         Contoh: <span data-help="tileWidth">Lebar canvas</span>
+    // ------------------------------------------------------------------
+    if (el.tagName === "SPAN") {
+      if (el.querySelector(".help-badge")) return; // sudah ada
+      el.appendChild(createHelpBadge(text));
+      created++;
+      return;
+    }
+
+    // ------------------------------------------------------------------
+    // KASUS 2: el adalah <button data-help="..."> → sisipkan badge DI DALAM button
+    //         Contoh: <button data-help="generateBtn">Generate</button>
+    // ------------------------------------------------------------------
+    if (el.tagName === "BUTTON") {
+      if (el.querySelector(".help-badge")) return;
+      el.appendChild(createHelpBadge(text));
+      created++;
+      return;
+    }
+
+    // ------------------------------------------------------------------
+    // KASUS 3: el adalah <select data-help="..."> atau elemen form lain
+    //         Cari label parent, lalu cari span pertama di dalamnya.
+    // ------------------------------------------------------------------
     const label = el.closest("label");
-    if (!label) return;
-
-    let target = null;
-    for (const child of label.childNodes) {
-      if (child.nodeType === Node.TEXT_NODE && child.textContent.trim()) {
-        target = child;
-        break;
+    if (!label) {
+      // Tidak ada label → sisipkan setelah el
+      if (el.parentNode && !el.nextElementSibling?.classList?.contains("help-badge")) {
+        el.parentNode.insertBefore(createHelpBadge(text), el.nextSibling);
+        created++;
       }
-      if (
-        child.nodeType === Node.ELEMENT_NODE &&
-        !["INPUT", "SELECT", "OUTPUT", "BUTTON"].includes(child.tagName)
-      ) {
-        const innerSpan = child.querySelector("span:not(.help-badge)");
-        target = innerSpan || child;
-        break;
-      }
+      return;
     }
 
-    if (!target) {
-      const switchSpan = label.querySelector(".switch span:first-child");
-      if (switchSpan) target = switchSpan;
+    // Cari span pertama di label yang BUKAN badge dan bukan elemen sistem
+    const spanTarget = label.querySelector(
+      "span:not(.help-badge):not(.thumb-name):not(.upload-icon):not(.brand-mark)"
+    );
+
+    if (spanTarget && !spanTarget.querySelector(".help-badge")) {
+      spanTarget.appendChild(createHelpBadge(text));
+      created++;
+    } else if (!label.querySelector(".help-badge")) {
+      // Fallback: taruh badge di awal label
+      label.insertBefore(createHelpBadge(text), label.firstChild);
+      created++;
     }
-    if (!target) return;
-
-    const badge = document.createElement("span");
-    badge.className = "help-badge";
-    badge.textContent = "?";
-    badge.dataset.tooltip = text;
-
-    if (target.after) target.after(badge);
-    else target.parentNode.insertBefore(badge, target.nextSibling);
   });
+
+  console.log(`[HelpBadge] ${created} badge dibuat dari ${elements.length} elemen [data-help].`);
 }
 
 /* ---------- SIDEBAR TOGGLE ---------- */
@@ -1492,7 +1546,7 @@ function bindEventListeners() {
   els.downloadPngBtn.addEventListener("click", downloadPng);
   els.downloadSvgBtn.addEventListener("click", downloadSvg);
   els.batchDownloadCountBtn.addEventListener("click", batchDownloadByCount);
-  els.batchDownloadJsonBtn.addEventListener("click", batchDownloadJson);
+  els.batchDownloadJsonBtn.addEventListener("click", batchDownloadByJson);
 
   els.previewScale.addEventListener("input", () => updatePreviewBackground());
   els.showTile.addEventListener("input", () => updatePreviewBackground());
@@ -1526,7 +1580,8 @@ function init() {
   updateRepeatLabel();
   drawPattern().catch(console.error);
 
-  if (window.HELP_TEXTS) initHelpTooltips();
+  // Panggil selalu, tidak bergantung pada HELP_TEXTS
+  initHelpTooltips();
 }
 
 if (document.readyState === "loading") {
