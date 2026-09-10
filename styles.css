@@ -991,6 +991,7 @@ output {
 }
 
 /* ---------- HELP BADGE ---------- */
+/* ---------- HELP BADGE ---------- */
 .help-badge {
   position: relative;
   display: inline-flex;
@@ -1014,19 +1015,25 @@ output {
   background: var(--accent);
 }
 
+/* Tooltip memanjang horizontal, tidak wrap vertikal */
 .help-badge[data-tooltip]:hover::after {
   content: attr(data-tooltip);
   position: absolute;
   bottom: calc(100% + 8px);
   left: 50%;
   z-index: 999;
-  max-width: 280px;
-  padding: var(--space-xs) var(--space-sm);
+  /* Lebar mengikuti konten, tapi dibatasi maksimum */
+  width: max-content;
+  max-width: 360px;
+  padding: 6px 12px;
   font-size: 12px;
   font-weight: var(--fw-regular);
-  line-height: 1.4;
+  line-height: 1.35;
   color: #fff;
-  white-space: normal;
+  text-align: left;
+  white-space: nowrap;         /* ← kunci: teks tidak wrap vertikal */
+  overflow: hidden;
+  text-overflow: ellipsis;
   pointer-events: none;
   background: rgba(24, 32, 38, 0.92);
   border-radius: var(--radius-sm);
