@@ -1,8 +1,20 @@
-// ============================================================
-// app.js – Seamless Pattern Generator
-// (Dengan pewarnaan per path untuk mode multi + opsi download individual)
-// ============================================================
+/* ============================================================
+   app.js – Seamless Pattern Generator
+   Logika utama: state, render, batch, export/import
+   ============================================================ */
 
+/* ---------- CONSTANTS ---------- */
+const MAX_PLACEMENT_ATTEMPTS = 300;
+const MAX_SHRINK_STEPS = 6;
+const CLIENT_ZIP_URL = "https://cdn.jsdelivr.net/npm/client-zip@2.5.0/index.js";
+const SAMPLE_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 90">
+  <path d="M18 45 C18 22 37 10 60 10 C83 10 102 22 102 45 C102 68 83 80 60 80 C37 80 18 68 18 45Z" fill="#0e7c66"/>
+  <path d="M40 28 C52 18 70 18 82 28" fill="none" stroke="#ffffff" stroke-width="8" stroke-linecap="round"/>
+  <circle cx="45" cy="50" r="7" fill="#e0a458"/>
+  <circle cx="75" cy="50" r="7" fill="#d65f68"/>
+</svg>`;
+
+/* ---------- DOM CACHE ---------- */
 const els = {
   file: document.querySelector("#svgFile"),
   fileName: document.querySelector("#fileName"),
@@ -68,10 +80,8 @@ const els = {
 };
 
 const ctx = els.canvas.getContext("2d");
-const MAX_PLACEMENT_ATTEMPTS = 300;
-const MAX_SHRINK_STEPS = 6;
-const CLIENT_ZIP_URL = "https://cdn.jsdelivr.net/npm/client-zip@2.5.0/index.js";
 
+/* ---------- STATE ---------- */
 const state = {
   sources: [],
   nextSourceId: 1,
@@ -80,16 +90,10 @@ const state = {
   batchSeeds: [],
   batchJsonData: null,
   colorVersion: 0,
+  isDrawing: false,
 };
 
-const sampleSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 90">
-  <path d="M18 45 C18 22 37 10 60 10 C83 10 102 22 102 45 C102 68 83 80 60 80 C37 80 18 68 18 45Z" fill="#0e7c66"/>
-  <path d="M40 28 C52 18 70 18 82 28" fill="none" stroke="#ffffff" stroke-width="8" stroke-linecap="round"/>
-  <circle cx="45" cy="50" r="7" fill="#e0a458"/>
-  <circle cx="75" cy="50" r="7" fill="#d65f68"/>
-</svg>`;
-
-// ---------- UTILITY ----------
+/* ---------- UTILITIES ---------- */
 function mulberry32(seed) {
   let value = seed >>> 0;
   return function random() {
@@ -101,13 +105,8 @@ function mulberry32(seed) {
   };
 }
 
-function clamp(value, min, max) {
-  return Math.max(min, Math.min(max, value));
-}
-
-function numberFrom(el) {
-  return Number.parseFloat(el.value);
-}
+const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
+const numberFrom = (el) => Number.parseFloat(el.value);
 
 function escapeAttr(value) {
   return String(value)
@@ -120,28 +119,24 @@ function escapeAttr(value) {
 function parseHexList(text) {
   return (text || "")
     .split(",")
-    .map((value) => value.trim())
-    .filter((value) => /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(value));
+    .map((v) => v.trim())
+    .filter((v) => /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(v));
 }
 
 function randomHexColor() {
-  const value = Math.floor(Math.random() * 0xffffff);
-  return `#${value.toString(16).padStart(6, "0")}`;
+  return `#${Math.floor(Math.random() * 0xffffff).toString(16).padStart(6, "0")}`;
 }
 
-function checkedSources() {
-  return state.sources.filter((source) => source.checked);
-}
+const checkedSources = () => state.sources.filter((s) => s.checked);
 
-// ---------- ASPEK RASIO ----------
+/* ---------- SETTINGS ---------- */
 function getAspectRatio() {
   const value = els.aspectRatio.value;
   if (value === "1/1") return 1;
-  if (value === "16/9") return 16/9;
+  if (value === "16/9") return 16 / 9;
   return 1;
 }
 
-// ---------- SETTINGS ----------
 function getSettings() {
   const width = Math.round(numberFrom(els.tileWidth));
   const aspect = getAspectRatio();
@@ -174,7 +169,7 @@ function getSettings() {
   };
 }
 
-// ---------- UI UPDATE ----------
+/* ---------- LABELS / UI UPDATE ---------- */
 function updateLabels() {
   els.baseScaleValue.value = `${els.baseScale.value}%`;
   els.scaleVarianceValue.value = `${els.scaleVariance.value}%`;
@@ -188,12 +183,13 @@ function updateRepeatLabel() {
 }
 
 function exportSizeLabel(settings = getSettings()) {
-  return settings.width === 3840 && settings.height === 2160 ? "4K" : `${settings.width}x${settings.height}`;
+  return settings.width === 3840 && settings.height === 2160
+    ? "4K"
+    : `${settings.width}x${settings.height}`;
 }
 
-function exportFileLabel(settings = getSettings()) {
-  return exportSizeLabel(settings).toLowerCase();
-}
+const exportFileLabel = (settings = getSettings()) =>
+  exportSizeLabel(settings).toLowerCase();
 
 function updateExportLabels() {
   const label = exportSizeLabel();
@@ -207,6 +203,15 @@ function setRadioValue(nodeList, value) {
   });
 }
 
+function updateFileLabel() {
+  const total = state.sources.length;
+  const active = checkedSources().length;
+  els.fileName.textContent = total
+    ? `${active}/${total} SVG aktif`
+    : "Pilih file SVG (bisa banyak)";
+}
+
+/* ---------- SVG PARSING ---------- */
 function parseSvgAspect(svgText) {
   const doc = new DOMParser().parseFromString(svgText, "image/svg+xml");
   const svg = doc.querySelector("svg");
@@ -237,12 +242,7 @@ function loadImageFromText(svgText) {
   });
 }
 
-function updateFileLabel() {
-  const total = state.sources.length;
-  const active = checkedSources().length;
-  els.fileName.textContent = total ? `${active}/${total} SVG aktif` : "Pilih file SVG (bisa banyak)";
-}
-
+/* ---------- THUMB STRIP ---------- */
 function renderThumbStrip() {
   els.thumbStrip.innerHTML = "";
   state.sources.forEach((source) => {
@@ -260,23 +260,23 @@ function renderThumbStrip() {
   });
 }
 
-// ---------- MANAJEMEN FILE ----------
+/* ---------- FILE MANAGEMENT ---------- */
 function checkAllFiles() {
-  state.sources.forEach(s => s.checked = true);
+  state.sources.forEach((s) => (s.checked = true));
   renderThumbStrip();
   updateFileLabel();
   drawPattern().catch(console.error);
 }
 
 function uncheckAllFiles() {
-  state.sources.forEach(s => s.checked = false);
+  state.sources.forEach((s) => (s.checked = false));
   renderThumbStrip();
   updateFileLabel();
   drawPattern().catch(console.error);
 }
 
 function resetFiles() {
-  state.sources.forEach(s => URL.revokeObjectURL(s.url));
+  state.sources.forEach((s) => URL.revokeObjectURL(s.url));
   state.sources = [];
   state.nextSourceId = 1;
   renderThumbStrip();
@@ -284,51 +284,36 @@ function resetFiles() {
   drawPattern().catch(console.error);
 }
 
-function getSourceName() {
-  const sources = checkedSources();
-  if (!sources.length) return "pattern";
-  const names = sources.map(s => s.name.replace(/\.svg$/i, ''));
-  if (names.length === 1) return names[0];
-  return names[0] + ` (+${names.length - 1} more)`;
-}
-
-// ---------- MODIFIKASI SVG UNTUK MULTI COLOR PER PATH ----------
+/* ---------- MULTI-COLOR SVG MODIFICATION ---------- */
 function modifySvgWithMultiColors(svgText, colors, seed) {
-  const parser = new DOMParser();
-  const doc = parser.parseFromString(svgText, "image/svg+xml");
+  const doc = new DOMParser().parseFromString(svgText, "image/svg+xml");
   const svg = doc.querySelector("svg");
   if (!svg) return svgText;
 
   const random = mulberry32(seed);
-  
+  const tagsToColor = [
+    "path", "circle", "rect", "ellipse", "polygon", "polyline", "line", "text", "g",
+  ];
+
   function processElement(el) {
     const tagName = el.tagName.toLowerCase();
-    if (['path', 'circle', 'rect', 'ellipse', 'polygon', 'polyline', 'line', 'text', 'g'].includes(tagName)) {
+    if (tagsToColor.includes(tagName)) {
       const color = colors[Math.floor(random() * colors.length)];
-      
-      const hasFill = el.hasAttribute('fill');
-      const hasStroke = el.hasAttribute('stroke');
-      const isFillNone = el.getAttribute('fill') === 'none';
-      
-      if (!isFillNone && (hasFill || !hasStroke)) {
-        el.setAttribute('fill', color);
-      }
-      
-      if (hasStroke && el.getAttribute('stroke') !== 'none') {
-        el.setAttribute('stroke', color);
-      }
+      const hasFill = el.hasAttribute("fill");
+      const hasStroke = el.hasAttribute("stroke");
+      const isFillNone = el.getAttribute("fill") === "none";
+
+      if (!isFillNone && (hasFill || !hasStroke)) el.setAttribute("fill", color);
+      if (hasStroke && el.getAttribute("stroke") !== "none") el.setAttribute("stroke", color);
     }
-    
-    Array.from(el.children).forEach(child => processElement(child));
+    Array.from(el.children).forEach(processElement);
   }
-  
-  Array.from(svg.children).forEach(child => processElement(child));
-  
-  const serializer = new XMLSerializer();
-  return serializer.serializeToString(doc);
+
+  Array.from(svg.children).forEach(processElement);
+  return new XMLSerializer().serializeToString(doc);
 }
 
-// ---------- COLLISION & PLACEMENT ----------
+/* ---------- PLACEMENT HELPERS ---------- */
 function edgeAnchor(index, settings, random) {
   const side = index % 4;
   const edgeBand = Math.min(64, Math.min(settings.width, settings.height) * 0.08);
@@ -364,15 +349,11 @@ function makeCandidate(index, settings, random, longSide, aspect, point = null) 
 }
 
 function candidatePositionForAttempt(index, attempt, settings, random, candidate, placed) {
-  if (attempt === 0 && settings.allowEdgeCuts && index < 4) return { x: candidate.x, y: candidate.y };
+  if (attempt === 0 && settings.allowEdgeCuts && index < 4) {
+    return { x: candidate.x, y: candidate.y };
+  }
   return PatternDistribution.positionForAttempt({
-    index,
-    attempt,
-    settings,
-    random,
-    item: candidate,
-    placed,
-    layout: settings.layout,
+    index, attempt, settings, random, item: candidate, placed, layout: settings.layout,
   });
 }
 
@@ -385,12 +366,15 @@ function pickColorForItem(settings, random) {
 }
 
 function placeOneObject(index, settings, random, baseLongSide, placed, sources) {
-  const sourceIndex = Math.floor(random() * sources.length);
-  const source = sources[sourceIndex];
+  const source = sources[Math.floor(random() * sources.length)];
   const aspect = Math.max(0.05, source.aspect || 1);
   const color = pickColorForItem(settings, random);
   const variance = 1 + (random() - 0.5) * settings.scaleVariance;
-  const initialLongSide = clamp(baseLongSide * variance, 8, Math.min(settings.width, settings.height));
+  const initialLongSide = clamp(
+    baseLongSide * variance,
+    8,
+    Math.min(settings.width, settings.height),
+  );
 
   for (let shrinkStep = 0; shrinkStep <= MAX_SHRINK_STEPS; shrinkStep += 1) {
     const longSide = initialLongSide * 0.9 ** shrinkStep;
@@ -410,7 +394,6 @@ function placeOneObject(index, settings, random, baseLongSide, placed, sources) 
       }
     }
   }
-
   return null;
 }
 
@@ -429,25 +412,22 @@ function calculateAutoLayout() {
   const shortSide = Math.min(settings.width, settings.height);
   const canvasScale = Math.sqrt(canvasArea / (3840 * 2160));
   const baseCount = clamp(Math.round(30 * canvasScale), 14, 96);
-  let count = baseCount;
-  let longSide = Math.sqrt((canvasArea * targetCoverage) / (count * (aspect >= 1 ? 1 / aspect : aspect)));
-
+  let longSide = Math.sqrt((canvasArea * targetCoverage) / (baseCount * (aspect >= 1 ? 1 / aspect : aspect)));
   longSide = clamp(longSide, shortSide * 0.055, shortSide * 0.18);
 
-  let objectArea = estimateObjectArea(longSide, aspect);
-  count = clamp(Math.round((canvasArea * targetCoverage) / objectArea), 8, 140);
+  const objectArea = estimateObjectArea(longSide, aspect);
+  const count = clamp(Math.round((canvasArea * targetCoverage) / objectArea), 8, 140);
   const gridCellArea = canvasArea / count;
   const spacing = clamp(Math.sqrt(gridCellArea) * 0.12, shortSide * 0.012, 180);
   const scale = clamp((longSide / shortSide) * 100, 5, 80);
   const variance = clamp(24 + Math.abs(aspect - 1) * 8, 18, 44);
-  const jitter = 72;
 
   return {
     count: Math.round(count),
     scale: Math.round(scale),
     spacing: Math.round(spacing),
     variance: Math.round(variance),
-    jitter,
+    jitter: 72,
   };
 }
 
@@ -485,17 +465,15 @@ function buildPlacements(settings) {
   return placed;
 }
 
-// ---------- RENDER SUMBER GAMBAR ----------
+/* ---------- RENDER SOURCE (with cache per colorVersion) ---------- */
 async function renderSourceFor(item) {
   const settings = getSettings();
   const currentVersion = state.colorVersion || 0;
-  
-  if (item.renderSource && item._colorVersion === currentVersion) {
-    return item.renderSource;
-  }
-  
+
+  if (item.renderSource && item._colorVersion === currentVersion) return item.renderSource;
+
   item.renderSource = null;
-  
+
   try {
     if (settings.coloring.mode === "original") {
       item.renderSource = item.source.image;
@@ -521,10 +499,10 @@ async function renderSourceFor(item) {
         const url = URL.createObjectURL(blob);
         const image = new Image();
         await new Promise((resolve, reject) => {
-          image.onload = () => resolve();
+          image.onload = resolve;
           image.onerror = (err) => {
             URL.revokeObjectURL(url);
-            reject(new Error(`Gagal memuat SVG: ${err.message || ''}`));
+            reject(new Error(`Gagal memuat SVG: ${err.message || ""}`));
           };
           image.src = url;
         });
@@ -532,11 +510,11 @@ async function renderSourceFor(item) {
         item.renderSource = image;
       }
     }
-    
+
     item._colorVersion = currentVersion;
     return item.renderSource;
   } catch (error) {
-    console.error('Error rendering:', error);
+    console.error("Error rendering:", error);
     item.renderSource = item.source.image;
     item._colorVersion = currentVersion;
     return item.renderSource;
@@ -554,6 +532,7 @@ function drawImageItem(item, dx, dy) {
   ctx.restore();
 }
 
+/* ---------- STATS ---------- */
 function updateStatsPanel(settings) {
   const stats = PatternStats.calculatePatternStats(
     state.placements,
@@ -569,8 +548,8 @@ function updateStatsPanel(settings) {
   els.statObjectCount.textContent = `${stats.objectCount}`;
   els.statAverageDistance.textContent = `${Math.round(stats.averageDistance)} px`;
   els.statDuplicateEdge.textContent = `${stats.duplicateEdgeObjects}`;
-  els.statLargest.textContent = `${Math.round(stats.largestObject)} px2`;
-  els.statSmallest.textContent = `${Math.round(stats.smallestObject)} px2`;
+  els.statLargest.textContent = `${Math.round(stats.largestObject)} px²`;
+  els.statSmallest.textContent = `${Math.round(stats.smallestObject)} px²`;
   els.statCanvasSize.textContent = stats.canvasSize;
   els.coverageBar.style.width = `${progressWidth}%`;
   els.coverageBar.classList.remove("coverage-good", "coverage-warn", "coverage-danger");
@@ -580,12 +559,11 @@ function updateStatsPanel(settings) {
   if (coverage > 60) els.coverageBar.classList.add("coverage-danger");
 }
 
-// ---------- DRAW PATTERN (ASYNC) ----------
-let isDrawing = false;
-
+/* ---------- DRAW PATTERN ---------- */
 async function drawPattern() {
-  if (isDrawing) return;
-  isDrawing = true;
+  if (state.isDrawing) return;
+  state.isDrawing = true;
+
   try {
     const settings = getSettings();
     els.canvas.width = settings.width;
@@ -609,25 +587,29 @@ async function drawPattern() {
     }
 
     state.placements = buildPlacements(settings);
-    await Promise.all(state.placements.map((item) => renderSourceFor(item)));
+    await Promise.all(state.placements.map(renderSourceFor));
 
     state.placements.forEach((item) => {
       PatternCollision.wrapOffsets(item, settings).forEach(({ dx, dy }) =>
-        drawImageItem(item, dx, dy)
+        drawImageItem(item, dx, dy),
       );
     });
 
     updatePreviewBackground(settings);
     updateStatsPanel(settings);
 
-    const duplicateCount = state.placements.reduce((sum, item) => {
-      return sum + PatternCollision.wrapOffsets(item, settings).length - 1;
-    }, 0);
-    const skipped = state.skippedCount ? `, ${state.skippedCount} objek dilewati karena collision` : "";
+    const duplicateCount = state.placements.reduce(
+      (sum, item) => sum + PatternCollision.wrapOffsets(item, settings).length - 1,
+      0,
+    );
+    const skipped = state.skippedCount
+      ? `, ${state.skippedCount} objek dilewati karena collision`
+      : "";
     const aspectRatio = getAspectRatio().toFixed(2);
+
     els.statusText.textContent = `${state.placements.length} objek, ${duplicateCount} salinan tepi${skipped}, canvas ${settings.width} x ${settings.height}px, rasio ${aspectRatio}:1.`;
   } finally {
-    isDrawing = false;
+    state.isDrawing = false;
   }
 }
 
@@ -639,6 +621,7 @@ function updatePreviewBackground(settings = getSettings()) {
   const displayH = Math.round(settings.height * scale);
   const tileW = displayW / repeat;
   const tileH = displayH / repeat;
+
   els.repeatPreview.style.backgroundImage = `url("${url}")`;
   els.repeatPreview.style.backgroundSize = `${tileW}px ${tileH}px`;
   els.tileFrame.style.width = `${displayW}px`;
@@ -646,6 +629,7 @@ function updatePreviewBackground(settings = getSettings()) {
   els.tileFrame.classList.toggle("hidden-border", !els.showTile.checked);
 }
 
+/* ---------- DEBUG HOOK ---------- */
 function validateCurrentCollisions() {
   const settings = getSettings();
   for (let i = 0; i < state.placements.length; i += 1) {
@@ -670,7 +654,7 @@ window.PatternAppDebug = {
   validateCurrentCollisions,
 };
 
-// ---------- DOWNLOAD ----------
+/* ---------- DOWNLOAD UTILS ---------- */
 function download(filename, href) {
   const link = document.createElement("a");
   link.download = filename;
@@ -683,7 +667,10 @@ function download(filename, href) {
 function downloadPng() {
   if (!state.placements.length) return;
   const settings = getSettings();
-  download(`seamless-pattern-${exportFileLabel(settings)}-${els.seed.value}.png`, els.canvas.toDataURL("image/png"));
+  download(
+    `seamless-pattern-${exportFileLabel(settings)}-${els.seed.value}.png`,
+    els.canvas.toDataURL("image/png"),
+  );
 }
 
 function svgFilterId(hex) {
@@ -721,7 +708,9 @@ function buildSvgMarkup(settings, placements) {
         const x = item.x + dx;
         const y = item.y + dy;
         const href = sourceHrefs.get(item.source.id);
-        const filterAttr = item.color ? ` filter="url(#${usedColors.get(item.color)})"` : "";
+        const filterAttr = item.color
+          ? ` filter="url(#${usedColors.get(item.color)})"`
+          : "";
         return [
           `<image href="${href}"${filterAttr}`,
           `x="${escapeAttr(-item.width / 2)}" y="${escapeAttr(-item.height / 2)}"`,
@@ -758,7 +747,7 @@ function downloadSvg() {
   window.setTimeout(() => URL.revokeObjectURL(url), 500);
 }
 
-// ---------- HANDLE FILE ----------
+/* ---------- FILE HANDLERS ---------- */
 async function handleFiles(event) {
   const files = Array.from(event.target.files || []);
   if (!files.length) return;
@@ -789,14 +778,14 @@ async function handleFiles(event) {
 
 async function useSampleSvg() {
   try {
-    const loaded = await loadImageFromText(sampleSvg);
+    const loaded = await loadImageFromText(SAMPLE_SVG);
     state.sources.push({
       id: state.nextSourceId++,
       name: "contoh-shape.svg",
-      text: sampleSvg,
+      text: SAMPLE_SVG,
       url: loaded.url,
       image: loaded.image,
-      aspect: parseSvgAspect(sampleSvg),
+      aspect: parseSvgAspect(SAMPLE_SVG),
       checked: true,
     });
     renderThumbStrip();
@@ -812,12 +801,11 @@ function shuffleSeed() {
   drawPattern().catch(console.error);
 }
 
-// ---------- SYNC FUNCTIONS ----------
+/* ---------- SYNC WIDTH/HEIGHT ---------- */
 function syncHeightToWidth() {
   const width = Math.round(numberFrom(els.tileWidth));
   const aspect = getAspectRatio();
   if (aspect <= 0) {
-    console.warn('Aspect ratio tidak valid, menggunakan default 1:1');
     els.tileHeight.value = Math.round(width);
     return;
   }
@@ -828,38 +816,34 @@ function syncWidthToHeight() {
   const height = Math.round(numberFrom(els.tileHeight));
   const aspect = getAspectRatio();
   if (aspect <= 0) {
-    console.warn('Aspect ratio tidak valid, menggunakan default 1:1');
     els.tileWidth.value = Math.round(height);
     return;
   }
   els.tileWidth.value = Math.round(height * aspect);
 }
 
-function canvasToBlob(canvas) {
-  return new Promise((resolve) => canvas.toBlob((blob) => resolve(blob), "image/png"));
-}
+const canvasToBlob = (canvas) =>
+  new Promise((resolve) => canvas.toBlob((blob) => resolve(blob), "image/png"));
 
-function nextFrame() {
-  return new Promise((resolve) => requestAnimationFrame(() => resolve()));
-}
+const nextFrame = () => new Promise((resolve) => requestAnimationFrame(resolve));
 
-// ---------- SAVE TO FOLDER (File System Access) ----------
+/* ---------- SAVE TO FOLDER (File System Access) ---------- */
 async function saveFilesToFolder(filesGenerator) {
   let dirHandle;
   try {
     dirHandle = await window.showDirectoryPicker();
   } catch (err) {
-    if (err.name === 'AbortError' || err.name === 'SecurityError') {
-      throw new Error('Pemilihan folder dibatalkan.');
+    if (err.name === "AbortError" || err.name === "SecurityError") {
+      throw new Error("Pemilihan folder dibatalkan.");
     }
     throw err;
   }
 
   let count = 0;
   for await (const file of filesGenerator) {
-    const pathParts = file.name.split('/');
+    const pathParts = file.name.split("/");
     let currentHandle = dirHandle;
-    
+
     for (let i = 0; i < pathParts.length - 1; i++) {
       const folderName = pathParts[i];
       try {
@@ -869,7 +853,7 @@ async function saveFilesToFolder(filesGenerator) {
         throw new Error(`Gagal membuat folder: ${folderName}`);
       }
     }
-    
+
     const fileName = pathParts[pathParts.length - 1];
     const fileHandle = await currentHandle.getFileHandle(fileName, { create: true });
     const writable = await fileHandle.createWritable();
@@ -881,36 +865,29 @@ async function saveFilesToFolder(filesGenerator) {
   return count;
 }
 
-// ---------- BATCH GENERATOR BY COUNT ----------
+/* ---------- BATCH GENERATOR BY COUNT ---------- */
 async function* batchGeneratorByCount(count, format) {
-  const seeds = state.batchSeeds && state.batchSeeds.length
+  const seeds = state.batchSeeds?.length
     ? state.batchSeeds.slice(0, count)
     : Array.from({ length: count }, () => Math.floor(Math.random() * 999999) + 1);
 
-  const mode = document.querySelector('input[name="batchMode"]:checked')?.value || 'checked';
-  
-  let sourcesToProcess;
-  if (mode === 'all') {
-    sourcesToProcess = state.sources.slice();
-  } else {
-    sourcesToProcess = checkedSources();
-  }
+  const mode = document.querySelector('input[name="batchMode"]:checked')?.value || "checked";
+  const sourcesToProcess = mode === "all" ? state.sources.slice() : checkedSources();
 
   if (!sourcesToProcess.length) {
     els.batchStatus.textContent = "Tidak ada file SVG untuk diproses.";
     return;
   }
 
-  const backupChecked = state.sources.map(src => src.checked);
+  const backupChecked = state.sources.map((src) => src.checked);
 
   for (let i = 0; i < seeds.length; i++) {
     const seed = seeds[i];
     els.seed.value = seed;
-    
+
     for (let s = 0; s < sourcesToProcess.length; s++) {
       const source = sourcesToProcess[s];
-      
-      state.sources.forEach(src => src.checked = false);
+      state.sources.forEach((src) => (src.checked = false));
       source.checked = true;
       renderThumbStrip();
       updateFileLabel();
@@ -921,19 +898,14 @@ async function* batchGeneratorByCount(count, format) {
       const settings = getSettings();
       const index = i + 1;
       const idxSource = s + 1;
-      
-      const sourceFolder = source.name.replace(/\.svg$/i, '');
+      const sourceFolder = source.name.replace(/\.svg$/i, "");
       const baseName = `${sourceFolder}-${index}-${seed}`;
-      
+
       els.batchStatus.textContent = `[${index}/${seeds.length}] [${idxSource}/${sourcesToProcess.length}] ${source.name} (seed ${seed})...`;
 
       if (format === "png" || format === "both") {
         const blob = await canvasToBlob(els.canvas);
-        if (blob) yield { 
-          name: `${sourceFolder}/${baseName}.png`, 
-          input: blob, 
-          lastModified: new Date() 
-        };
+        if (blob) yield { name: `${sourceFolder}/${baseName}.png`, input: blob, lastModified: new Date() };
       }
       if (format === "svg" || format === "both") {
         const svg = buildSvgMarkup(settings, state.placements);
@@ -946,12 +918,12 @@ async function* batchGeneratorByCount(count, format) {
     }
   }
 
-  state.sources.forEach((src, idx) => src.checked = backupChecked[idx]);
+  state.sources.forEach((src, idx) => (src.checked = backupChecked[idx]));
   renderThumbStrip();
   updateFileLabel();
 }
 
-// ---------- BATCH DOWNLOAD BY COUNT ----------
+/* ---------- BATCH DOWNLOAD BY COUNT ---------- */
 async function batchDownloadByCount() {
   if (!checkedSources().length) {
     els.batchStatus.textContent = "Centang minimal satu SVG dulu.";
@@ -960,9 +932,9 @@ async function batchDownloadByCount() {
 
   const count = clamp(Math.round(numberFrom(els.batchCount)) || 1, 1, 500);
   const format = els.batchFormat.value;
-  const outputMode = els.batchOutputMode ? els.batchOutputMode.value : "zip";
-
+  const outputMode = els.batchOutputMode?.value || "zip";
   const originalSeed = els.seed.value;
+
   els.batchDownloadCountBtn.disabled = true;
   els.batchStatus.textContent = "Menyiapkan batch berdasarkan jumlah...";
 
@@ -972,17 +944,15 @@ async function batchDownloadByCount() {
         const total = await saveFilesToFolder(batchGeneratorByCount(count, format));
         els.batchStatus.textContent = `✅ Selesai. ${total} file disimpan ke folder.`;
       } catch (folderErr) {
-        if (folderErr.message.includes('dibatalkan')) {
-          els.batchStatus.textContent = `⚠️ ${folderErr.message}`;
-        } else {
-          els.batchStatus.textContent = `❌ Gagal: ${folderErr.message}`;
-        }
+        els.batchStatus.textContent = folderErr.message.includes("dibatalkan")
+          ? `⚠️ ${folderErr.message}`
+          : `❌ Gagal: ${folderErr.message}`;
       }
     } else {
       const zipName = `batch-count-${Date.now()}.zip`;
       let handle = null;
       let useFilePicker = false;
-      
+
       if (window.showSaveFilePicker) {
         try {
           handle = await window.showSaveFilePicker({
@@ -993,10 +963,8 @@ async function batchDownloadByCount() {
         } catch (error) {
           if (error?.name === "AbortError" || error?.name === "SecurityError") {
             els.batchStatus.textContent = "⚠️ Batch dibatalkan.";
-            els.batchDownloadCountBtn.disabled = false;
             return;
           }
-          console.warn("File picker failed, falling back to download:", error);
           handle = null;
           useFilePicker = false;
         }
@@ -1011,12 +979,11 @@ async function batchDownloadByCount() {
           await response.body.pipeTo(writable);
           els.batchStatus.textContent = `✅ Selesai. ${count} pattern disimpan ke ${zipName}.`;
         } catch (writeError) {
-          console.warn("Failed to write via file picker, falling back to download:", writeError);
           const blob = await response.blob();
           const url = URL.createObjectURL(blob);
           download(zipName, url);
           window.setTimeout(() => URL.revokeObjectURL(url), 500);
-          els.batchStatus.textContent = `✅ Selesai (fallback). ${count} pattern diunduh sebagai ${zipName}.`;
+          els.batchStatus.textContent = `✅ Selesai (fallback). ${count} pattern diunduh.`;
         }
       } else {
         const blob = await response.blob();
@@ -1027,12 +994,11 @@ async function batchDownloadByCount() {
       }
     }
   } catch (error) {
-    if (error?.name === "AbortError") {
-      els.batchStatus.textContent = "⚠️ Batch dibatalkan.";
-    } else {
-      els.batchStatus.textContent = `❌ Gagal membuat batch: ${error.message}`;
-      console.error('Batch error:', error);
-    }
+    els.batchStatus.textContent =
+      error?.name === "AbortError"
+        ? "⚠️ Batch dibatalkan."
+        : `❌ Gagal membuat batch: ${error.message}`;
+    console.error("Batch error:", error);
   } finally {
     els.seed.value = originalSeed;
     await drawPattern();
@@ -1040,53 +1006,43 @@ async function batchDownloadByCount() {
   }
 }
 
-// ---------- BATCH GENERATOR BY JSON ----------
+/* ---------- BATCH GENERATOR BY JSON ---------- */
 async function* batchGeneratorByJson(jsonData, format) {
-  const mode = document.querySelector('input[name="batchMode"]:checked')?.value || 'checked';
+  const mode = document.querySelector('input[name="batchMode"]:checked')?.value || "checked";
   let sourcesToProcess;
 
-  if (mode === 'all') {
-    sourcesToProcess = state.sources.slice();
-  } else if (mode === 'original') {
-    sourcesToProcess = null;
-  } else {
-    sourcesToProcess = checkedSources();
-  }
+  if (mode === "all") sourcesToProcess = state.sources.slice();
+  else if (mode === "original") sourcesToProcess = null;
+  else sourcesToProcess = checkedSources();
 
-  if (mode === 'original') {
+  if (mode === "original") {
     if (!checkedSources().length) {
       els.batchStatus.textContent = "Tidak ada file SVG yang dicentang untuk mode Original.";
       return;
     }
-  } else {
-    if (!sourcesToProcess.length) {
-      els.batchStatus.textContent = "Tidak ada file SVG untuk diproses.";
-      return;
-    }
+  } else if (!sourcesToProcess.length) {
+    els.batchStatus.textContent = "Tidak ada file SVG untuk diproses.";
+    return;
   }
 
-  const backupChecked = state.sources.map(src => src.checked);
+  const backupChecked = state.sources.map((src) => src.checked);
 
   for (let i = 0; i < jsonData.length; i++) {
     const jsonItem = jsonData[i];
     applySettingsFromObject(jsonItem);
     const settings = getSettings();
-    const seed = settings.seed || (i + 1);
+    const seed = settings.seed || i + 1;
 
-    if (mode === 'original') {
+    if (mode === "original") {
       await drawPattern();
       await nextFrame();
 
-      const baseName = `combined-${i+1}-${seed}`;
-      els.batchStatus.textContent = `[${i+1}/${jsonData.length}] Original combined (seed ${seed})...`;
+      const baseName = `combined-${i + 1}-${seed}`;
+      els.batchStatus.textContent = `[${i + 1}/${jsonData.length}] Original combined (seed ${seed})...`;
 
       if (format === "png" || format === "both") {
         const blob = await canvasToBlob(els.canvas);
-        if (blob) yield { 
-          name: `original/${baseName}.png`, 
-          input: blob, 
-          lastModified: new Date() 
-        };
+        if (blob) yield { name: `original/${baseName}.png`, input: blob, lastModified: new Date() };
       }
       if (format === "svg" || format === "both") {
         const svg = buildSvgMarkup(settings, state.placements);
@@ -1097,10 +1053,10 @@ async function* batchGeneratorByJson(jsonData, format) {
         };
       }
     } else {
-      const sources = mode === 'all' ? state.sources : checkedSources();
+      const sources = mode === "all" ? state.sources : checkedSources();
       for (let s = 0; s < sources.length; s++) {
         const source = sources[s];
-        state.sources.forEach(src => src.checked = false);
+        state.sources.forEach((src) => (src.checked = false));
         source.checked = true;
         renderThumbStrip();
         updateFileLabel();
@@ -1109,22 +1065,17 @@ async function* batchGeneratorByJson(jsonData, format) {
         await nextFrame();
 
         const settingsLocal = getSettings();
-        const seedLocal = settingsLocal.seed || (i + 1);
+        const seedLocal = settingsLocal.seed || i + 1;
         const idxJson = i + 1;
         const idxSource = s + 1;
-        
-        const sourceFolder = source.name.replace(/\.svg$/i, '');
+        const sourceFolder = source.name.replace(/\.svg$/i, "");
         const baseName = `${sourceFolder}-${idxJson}-${seedLocal}`;
-        
+
         els.batchStatus.textContent = `[${idxJson}/${jsonData.length}] [${idxSource}/${sources.length}] ${source.name} (seed ${seedLocal})...`;
 
         if (format === "png" || format === "both") {
           const blob = await canvasToBlob(els.canvas);
-          if (blob) yield { 
-            name: `${sourceFolder}/${baseName}.png`, 
-            input: blob, 
-            lastModified: new Date() 
-          };
+          if (blob) yield { name: `${sourceFolder}/${baseName}.png`, input: blob, lastModified: new Date() };
         }
         if (format === "svg" || format === "both") {
           const svg = buildSvgMarkup(settingsLocal, state.placements);
@@ -1138,14 +1089,14 @@ async function* batchGeneratorByJson(jsonData, format) {
     }
   }
 
-  if (mode !== 'original') {
-    state.sources.forEach((src, idx) => src.checked = backupChecked[idx]);
+  if (mode !== "original") {
+    state.sources.forEach((src, idx) => (src.checked = backupChecked[idx]));
     renderThumbStrip();
     updateFileLabel();
   }
 }
 
-// ---------- APPLY SETTINGS FROM OBJECT ----------
+/* ---------- APPLY SETTINGS FROM OBJECT ---------- */
 function applySettingsFromObject(data) {
   if (data.tileWidth) els.tileWidth.value = data.tileWidth;
   if (data.tileHeight) els.tileHeight.value = data.tileHeight;
@@ -1156,12 +1107,8 @@ function applySettingsFromObject(data) {
   if (data.rotation !== undefined) els.rotation.value = data.rotation;
   if (data.spacing !== undefined) els.spacing.value = data.spacing;
   if (data.jitter !== undefined) els.jitter.value = data.jitter;
-
   if (data.allowEdgeCuts !== undefined) els.allowEdgeCuts.checked = data.allowEdgeCuts;
-
-  if (data.layout) {
-    els.layoutSelect.value = data.layout;
-  }
+  if (data.layout) els.layoutSelect.value = data.layout;
 
   if (data.background) {
     if (data.background.mode) setRadioValue(els.bgMode, data.background.mode);
@@ -1171,42 +1118,38 @@ function applySettingsFromObject(data) {
   if (data.coloring) {
     if (data.coloring.mode) setRadioValue(els.colorMode, data.coloring.mode);
     if (data.coloring.singleColor) els.singleColorPicker.value = data.coloring.singleColor;
-    if (data.coloring.colors) els.multiColorHex.value = data.coloring.colors.join(', ');
+    if (data.coloring.colors) els.multiColorHex.value = data.coloring.colors.join(", ");
   }
 
-  if (data.aspectRatio) {
-    els.aspectRatio.value = data.aspectRatio;
-  }
+  if (data.aspectRatio) els.aspectRatio.value = data.aspectRatio;
 
-  if (data.colorVersion !== undefined) {
-    state.colorVersion = data.colorVersion;
-  } else {
-    state.colorVersion = (state.colorVersion || 0) + 1;
-  }
+  state.colorVersion = data.colorVersion !== undefined
+    ? data.colorVersion
+    : (state.colorVersion || 0) + 1;
 
   updateLabels();
   syncHeightToWidth();
   updateExportLabels();
 }
 
-// ---------- BATCH DOWNLOAD BY JSON ----------
+/* ---------- BATCH DOWNLOAD BY JSON ---------- */
 async function batchDownloadByJson() {
-  if (!state.batchJsonData || !state.batchJsonData.length) {
+  if (!state.batchJsonData?.length) {
     els.batchStatus.textContent = "Upload file JSON terlebih dahulu.";
     return;
   }
 
-  const mode = document.querySelector('input[name="batchMode"]:checked')?.value || 'checked';
-  const sources = mode === 'all' ? state.sources : checkedSources();
+  const mode = document.querySelector('input[name="batchMode"]:checked')?.value || "checked";
+  const sources = mode === "all" ? state.sources : checkedSources();
   if (!sources.length) {
     els.batchStatus.textContent = "Tidak ada file SVG untuk diproses.";
     return;
   }
 
   const format = els.batchFormat.value;
-  const outputMode = els.batchOutputMode ? els.batchOutputMode.value : "zip";
-
+  const outputMode = els.batchOutputMode?.value || "zip";
   const originalSeed = els.seed.value;
+
   els.batchDownloadJsonBtn.disabled = true;
   els.batchStatus.textContent = "Menyiapkan batch dari JSON...";
 
@@ -1216,17 +1159,15 @@ async function batchDownloadByJson() {
         const total = await saveFilesToFolder(batchGeneratorByJson(state.batchJsonData, format));
         els.batchStatus.textContent = `✅ Selesai. ${total} file disimpan ke folder.`;
       } catch (folderErr) {
-        if (folderErr.message.includes('dibatalkan')) {
-          els.batchStatus.textContent = `⚠️ ${folderErr.message}`;
-        } else {
-          els.batchStatus.textContent = `❌ Gagal: ${folderErr.message}`;
-        }
+        els.batchStatus.textContent = folderErr.message.includes("dibatalkan")
+          ? `⚠️ ${folderErr.message}`
+          : `❌ Gagal: ${folderErr.message}`;
       }
     } else {
       const zipName = `batch-json-${Date.now()}.zip`;
       let handle = null;
       let useFilePicker = false;
-      
+
       if (window.showSaveFilePicker) {
         try {
           handle = await window.showSaveFilePicker({
@@ -1237,10 +1178,8 @@ async function batchDownloadByJson() {
         } catch (error) {
           if (error?.name === "AbortError" || error?.name === "SecurityError") {
             els.batchStatus.textContent = "⚠️ Batch dibatalkan.";
-            els.batchDownloadJsonBtn.disabled = false;
             return;
           }
-          console.warn("File picker failed, falling back to download:", error);
           handle = null;
           useFilePicker = false;
         }
@@ -1248,38 +1187,34 @@ async function batchDownloadByJson() {
 
       const { downloadZip } = await import(CLIENT_ZIP_URL);
       const response = downloadZip(batchGeneratorByJson(state.batchJsonData, format));
+      const total = state.batchJsonData.length * sources.length;
 
       if (handle && useFilePicker) {
         try {
           const writable = await handle.createWritable();
           await response.body.pipeTo(writable);
-          const total = state.batchJsonData.length * sources.length;
           els.batchStatus.textContent = `✅ Selesai. ${total} pattern dari JSON disimpan ke ${zipName}.`;
         } catch (writeError) {
-          console.warn("Failed to write via file picker, falling back to download:", writeError);
           const blob = await response.blob();
           const url = URL.createObjectURL(blob);
           download(zipName, url);
           window.setTimeout(() => URL.revokeObjectURL(url), 500);
-          const total = state.batchJsonData.length * sources.length;
-          els.batchStatus.textContent = `✅ Selesai (fallback). ${total} pattern dari JSON diunduh sebagai ${zipName}.`;
+          els.batchStatus.textContent = `✅ Selesai (fallback). ${total} pattern diunduh.`;
         }
       } else {
         const blob = await response.blob();
         const url = URL.createObjectURL(blob);
         download(zipName, url);
         window.setTimeout(() => URL.revokeObjectURL(url), 500);
-        const total = state.batchJsonData.length * sources.length;
-        els.batchStatus.textContent = `✅ Selesai. ${total} pattern dari JSON diunduh sebagai ${zipName}.`;
+        els.batchStatus.textContent = `✅ Selesai. ${total} pattern diunduh sebagai ${zipName}.`;
       }
     }
   } catch (error) {
-    if (error?.name === "AbortError") {
-      els.batchStatus.textContent = "⚠️ Batch dibatalkan.";
-    } else {
-      els.batchStatus.textContent = `❌ Gagal membuat batch: ${error.message}`;
-      console.error('Batch error:', error);
-    }
+    els.batchStatus.textContent =
+      error?.name === "AbortError"
+        ? "⚠️ Batch dibatalkan."
+        : `❌ Gagal membuat batch: ${error.message}`;
+    console.error("Batch error:", error);
   } finally {
     els.seed.value = originalSeed;
     await drawPattern();
@@ -1287,21 +1222,20 @@ async function batchDownloadByJson() {
   }
 }
 
-// ---------- EXPORT / IMPORT SETTINGS ----------
+/* ---------- EXPORT / IMPORT SETTINGS ---------- */
 function exportSettings() {
   const settings = getSettings();
-  const batchSeeds = state.batchSeeds && state.batchSeeds.length ? state.batchSeeds : [];
   const exportData = {
     ...settings,
     aspectRatio: els.aspectRatio.value,
-    batchSeeds: batchSeeds,
+    batchSeeds: state.batchSeeds || [],
     colorVersion: state.colorVersion || 0,
   };
   exportData.baseScale = Math.round(exportData.baseScale * 100);
   exportData.scaleVariance = Math.round(exportData.scaleVariance * 100);
   exportData.jitter = Math.round(exportData.jitter * 100);
 
-  const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+  const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: "application/json" });
   const url = URL.createObjectURL(blob);
   download(`pattern-settings-${Date.now()}.json`, url);
   window.setTimeout(() => URL.revokeObjectURL(url), 500);
@@ -1317,7 +1251,6 @@ function importSettings(file) {
         state.batchJsonData = data;
         state.batchSeeds = [];
         els.batchStatus.textContent = `✅ JSON batch loaded: ${data.length} entries.`;
-        console.log('Batch JSON loaded (array):', data);
         return;
       }
 
@@ -1325,58 +1258,80 @@ function importSettings(file) {
         state.batchJsonData = data.configurations;
         state.batchSeeds = [];
         const total = data.total || data.configurations.length;
-        els.batchStatus.textContent = `✅ JSON batch loaded: ${data.configurations.length} entries from configurations. Total: ${total}`;
-        console.log('Batch JSON loaded from configurations:', data.configurations);
+        els.batchStatus.textContent = `✅ JSON batch loaded: ${data.configurations.length} entries. Total: ${total}`;
         return;
       }
 
       state.batchJsonData = [data];
-      
       applySettingsFromObject(data);
-
-      if (data.batchSeeds && Array.isArray(data.batchSeeds)) {
-        state.batchSeeds = data.batchSeeds;
-      } else {
-        state.batchSeeds = [];
-      }
+      state.batchSeeds = data.batchSeeds && Array.isArray(data.batchSeeds) ? data.batchSeeds : [];
 
       els.batchStatus.textContent = `✅ Settings loaded: ${Object.keys(data).length} properties. 1 batch entry ready.`;
       drawPattern().catch(console.error);
     } catch (err) {
-      alert('File JSON tidak valid: ' + err.message);
-      els.batchStatus.textContent = '❌ Gagal load JSON: ' + err.message;
+      els.batchStatus.textContent = "❌ Gagal load JSON: " + err.message;
     }
   };
   reader.readAsText(file);
 }
 
-// ---------- EVENT LISTENERS ----------
-[
-  els.count,
-  els.seed,
-  els.baseScale,
-  els.scaleVariance,
-  els.rotation,
-  els.spacing,
-  els.jitter,
-  els.allowEdgeCuts,
-].forEach((el) => {
+/* ---------- HELP TOOLTIP INIT ---------- */
+function initHelpTooltips() {
+  document.querySelectorAll("[data-help]").forEach((el) => {
+    const key = el.dataset.help;
+    const text = window.HELP_TEXTS?.[key] || "Tidak ada keterangan.";
+    const label = el.closest("label");
+    if (!label) return;
+
+    let target = null;
+    for (const child of label.childNodes) {
+      if (child.nodeType === Node.TEXT_NODE && child.textContent.trim()) {
+        target = child;
+        break;
+      }
+      if (
+        child.nodeType === Node.ELEMENT_NODE &&
+        !["INPUT", "SELECT", "OUTPUT", "BUTTON"].includes(child.tagName)
+      ) {
+        const innerSpan = child.querySelector("span:not(.help-badge)");
+        target = innerSpan || child;
+        break;
+      }
+    }
+
+    if (!target) {
+      const switchSpan = label.querySelector(".switch span:first-child");
+      if (switchSpan) target = switchSpan;
+    }
+    if (!target) return;
+
+    const badge = document.createElement("span");
+    badge.className = "help-badge";
+    badge.textContent = "?";
+    badge.dataset.tooltip = text;
+
+    if (target.after) target.after(badge);
+    else target.parentNode.insertBefore(badge, target.nextSibling);
+  });
+}
+
+/* ---------- EVENT LISTENERS ---------- */
+const sliderInputs = [
+  els.count, els.seed, els.baseScale, els.scaleVariance, els.rotation, els.spacing, els.jitter,
+];
+sliderInputs.forEach((el) => {
   el.addEventListener("input", () => {
     updateLabels();
     drawPattern().catch(console.error);
   });
 });
+els.allowEdgeCuts.addEventListener("input", () => drawPattern().catch(console.error));
 
-const colorChangeListeners = [
-  els.multiColorHex,
-  els.singleColorPicker,
-  ...els.colorMode,
-];
-
-colorChangeListeners.forEach((el) => {
+const colorChangeInputs = [els.multiColorHex, els.singleColorPicker, ...els.colorMode];
+colorChangeInputs.forEach((el) => {
   el.addEventListener("input", () => {
     state.colorVersion = (state.colorVersion || 0) + 1;
-    state.placements.forEach(item => {
+    state.placements.forEach((item) => {
       delete item.renderSource;
       delete item._colorVersion;
     });
@@ -1384,23 +1339,23 @@ colorChangeListeners.forEach((el) => {
   });
 });
 
-els.bgMode.forEach((input) => input.addEventListener("input", () => drawPattern().catch(console.error)));
+els.bgMode.forEach((input) =>
+  input.addEventListener("input", () => drawPattern().catch(console.error)),
+);
 els.bgColorPicker.addEventListener("input", () => drawPattern().catch(console.error));
 
 els.randomColorBtn.addEventListener("click", () => {
   const total = clamp(Math.round(numberFrom(els.count)) || 6, 3, 12);
-  const colors = Array.from({ length: total }, randomHexColor);
-  els.multiColorHex.value = colors.join(", ");
+  els.multiColorHex.value = Array.from({ length: total }, randomHexColor).join(", ");
   setRadioValue(els.colorMode, "multi");
   state.colorVersion = (state.colorVersion || 0) + 1;
-  state.placements.forEach(item => {
+  state.placements.forEach((item) => {
     delete item.renderSource;
     delete item._colorVersion;
   });
   drawPattern().catch(console.error);
 });
 
-// ---------- EVENT LISTENER UNTUK TILE WIDTH & HEIGHT ----------
 els.tileWidth.addEventListener("input", () => {
   syncHeightToWidth();
   updateExportLabels();
@@ -1411,8 +1366,6 @@ els.tileHeight.addEventListener("input", () => {
   updateExportLabels();
   drawPattern().catch(console.error);
 });
-
-// ---------- EVENT LISTENER UNTUK ASPECT RATIO ----------
 els.aspectRatio.addEventListener("change", () => {
   syncHeightToWidth();
   updateExportLabels();
@@ -1439,6 +1392,7 @@ els.thumbStrip.addEventListener("click", (event) => {
   updateFileLabel();
   drawPattern().catch(console.error);
 });
+
 els.generateBtn.addEventListener("click", () => drawPattern().catch(console.error));
 els.autoLayoutBtn.addEventListener("click", applyAutoLayout);
 els.sampleBtn.addEventListener("click", useSampleSvg);
@@ -1454,87 +1408,72 @@ els.repeatCount.addEventListener("input", () => {
   updatePreviewBackground();
 });
 
-if (els.checkAllBtn) {
-  els.checkAllBtn.addEventListener("click", checkAllFiles);
-}
-if (els.uncheckAllBtn) {
-  els.uncheckAllBtn.addEventListener("click", uncheckAllFiles);
-}
-if (els.resetFilesBtn) {
-  els.resetFilesBtn.addEventListener("click", resetFiles);
-}
-
-if (els.exportJsonBtn) {
-  els.exportJsonBtn.addEventListener("click", exportSettings);
-}
-if (els.importJsonInput) {
-  els.importJsonInput.addEventListener("change", (e) => {
-    if (e.target.files.length) {
-      importSettings(e.target.files[0]);
-    }
-    e.target.value = '';
-  });
-}
-
-els.layoutSelect.addEventListener("change", () => {
-  drawPattern().catch(console.error);
+els.checkAllBtn.addEventListener("click", checkAllFiles);
+els.uncheckAllBtn.addEventListener("click", uncheckAllFiles);
+els.resetFilesBtn.addEventListener("click", resetFiles);
+els.exportJsonBtn.addEventListener("click", exportSettings);
+els.importJsonInput.addEventListener("change", (e) => {
+  if (e.target.files.length) importSettings(e.target.files[0]);
+  e.target.value = "";
 });
+els.layoutSelect.addEventListener("change", () => drawPattern().catch(console.error));
 
-// ---------- HELP TOOLTIP INIT ----------
-function initHelpTooltips() {
-  document.querySelectorAll('[data-help]').forEach((el) => {
-    const key = el.dataset.help;
-    const text = window.HELP_TEXTS?.[key] || 'Tidak ada keterangan.';
-    const label = el.closest('label');
-    if (!label) return;
+/* ---------- SIDEBAR TOGGLE ---------- */
+function initSidebarToggle() {
+  const sidebar = els.controlsSidebar;
+  const workspace = document.querySelector("#workspace");
+  const toggleBtn = document.querySelector("#sidebarToggle");
+  const toggleArea = document.querySelector("#sidebarToggleArea");
+  if (!sidebar || !workspace || !toggleBtn) return;
 
-    let target = null;
-    for (const child of label.childNodes) {
-      if (child.nodeType === Node.TEXT_NODE && child.textContent.trim()) {
-        target = child;
-        break;
-      }
-      if (child.nodeType === Node.ELEMENT_NODE && !['INPUT', 'SELECT', 'OUTPUT', 'BUTTON'].includes(child.tagName)) {
-        const innerSpan = child.querySelector('span:not(.help-badge)');
-        if (innerSpan) {
-          target = innerSpan;
-          break;
-        }
-        target = child;
-        break;
-      }
-    }
+  const isCollapsed = localStorage.getItem("sidebarCollapsed") === "true";
 
-    if (!target) {
-      const switchSpan = label.querySelector('.switch span:first-child');
-      if (switchSpan) target = switchSpan;
-    }
-
-    if (!target) return;
-
-    const badge = document.createElement('span');
-    badge.className = 'help-badge';
-    badge.textContent = '?';
-    badge.dataset.tooltip = text;
-
-    if (target.after) {
-      target.after(badge);
-    } else {
-      target.parentNode.insertBefore(badge, target.nextSibling);
-    }
-  });
-}
-
-// ---------- INISIALISASI ----------
-updateLabels();
-syncHeightToWidth();
-updateExportLabels();
-updateFileLabel();
-updateRepeatLabel();
-drawPattern().catch(console.error);
-
-document.addEventListener('DOMContentLoaded', () => {
-  if (window.HELP_TEXTS) {
-    initHelpTooltips();
+  function applyState(collapsed) {
+    sidebar.classList.toggle("controls-collapsed", collapsed);
+    workspace.classList.toggle("sidebar-collapsed", collapsed);
+    toggleBtn.setAttribute("aria-expanded", String(!collapsed));
+    toggleBtn.setAttribute("aria-label", collapsed ? "Expand sidebar" : "Collapse sidebar");
+    toggleBtn.title = collapsed ? "Expand sidebar (Ctrl+B)" : "Collapse sidebar (Ctrl+B)";
+    toggleBtn.querySelector("span").textContent = collapsed ? "▶" : "◀";
   }
-});
+
+  applyState(isCollapsed);
+
+  function toggleSidebar() {
+    const collapsed = !sidebar.classList.contains("controls-collapsed");
+    applyState(collapsed);
+    localStorage.setItem("sidebarCollapsed", String(collapsed));
+  }
+
+  toggleBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    toggleSidebar();
+  });
+  if (toggleArea) toggleArea.addEventListener("click", toggleSidebar);
+
+  document.addEventListener("keydown", (e) => {
+    if ((e.ctrlKey || e.metaKey) && (e.key === "b" || e.key === "B")) {
+      e.preventDefault();
+      toggleSidebar();
+    }
+  });
+}
+
+/* ---------- INIT ---------- */
+function init() {
+  initSidebarToggle();
+  updateLabels();
+  syncHeightToWidth();
+  updateExportLabels();
+  updateFileLabel();
+  updateRepeatLabel();
+  drawPattern().catch(console.error);
+
+  if (window.HELP_TEXTS) initHelpTooltips();
+}
+
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", init);
+} else {
+  init();
+}
