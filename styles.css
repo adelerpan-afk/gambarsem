@@ -993,6 +993,33 @@ output {
 /* ============================================================
    HELP BADGE
    ============================================================ */
+.help-badge {
+  position: relative;
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  margin-left: 5px;
+  font-size: 10px;
+  font-weight: var(--fw-bold);
+  line-height: 1;
+  color: #fff;
+  cursor: help;
+  background: #8ca6a0;
+  border-radius: var(--radius-full);
+  transition: background var(--t-fast);
+  vertical-align: middle;
+  user-select: none;
+}
+
+.help-badge:hover,
+.help-badge:focus-visible {
+  background: var(--accent);
+  outline: none;
+}
+
 /* Tooltip: lebar terbatas, teks wrap, tinggi menyesuaikan */
 .help-badge[data-tooltip]::after {
   content: attr(data-tooltip);
@@ -1026,6 +1053,29 @@ output {
   opacity: 0;
   visibility: hidden;
   transition: opacity var(--t-fast), visibility var(--t-fast);
+}
+
+.help-badge[data-tooltip]::before {
+  content: "";
+  position: absolute;
+  bottom: calc(100% + 2px);
+  left: 50%;
+  z-index: 9999;
+  pointer-events: none;
+  border: 6px solid transparent;
+  border-top-color: rgba(24, 32, 38, 0.92);
+  transform: translateX(-50%);
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity var(--t-fast), visibility var(--t-fast);
+}
+
+.help-badge[data-tooltip]:hover::after,
+.help-badge[data-tooltip]:hover::before,
+.help-badge[data-tooltip]:focus-visible::after,
+.help-badge[data-tooltip]:focus-visible::before {
+  opacity: 1;
+  visibility: visible;
 }
 
 /* ---------- RESPONSIVE ---------- */
