@@ -16,49 +16,80 @@ const SAMPLE_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 90"
 
 /* ---------- DOM CACHE ---------- */
 const els = {
+  /* Sidebar */
+  controlsSidebar: document.querySelector("#controlsSidebar"),
+  workspace: document.querySelector("#workspace"),
+  sidebarToggle: document.querySelector("#sidebarToggle"),
+  sidebarToggleArea: document.querySelector("#sidebarToggleArea"),
+
+  /* File & thumbnails */
   file: document.querySelector("#svgFile"),
   fileName: document.querySelector("#fileName"),
   thumbStrip: document.querySelector("#thumbStrip"),
+
+  /* Canvas settings */
   tileWidth: document.querySelector("#tileWidth"),
   tileHeight: document.querySelector("#tileHeight"),
   aspectRatio: document.querySelector("#aspectRatio"),
   count: document.querySelector("#count"),
   seed: document.querySelector("#seed"),
+
+  /* Sliders */
   baseScale: document.querySelector("#baseScale"),
   scaleVariance: document.querySelector("#scaleVariance"),
   rotation: document.querySelector("#rotation"),
   spacing: document.querySelector("#spacing"),
   jitter: document.querySelector("#jitter"),
+  repeatCount: document.querySelector("#repeatCount"),
+
+  /* Options */
   allowEdgeCuts: document.querySelector("#allowEdgeCuts"),
   showTile: document.querySelector("#showTile"),
+  layoutSelect: document.querySelector("#layoutSelect"),
+
+  /* Background */
   bgMode: document.querySelectorAll('input[name="bgMode"]'),
   bgColorPicker: document.querySelector("#bgColorPicker"),
+
+  /* Coloring */
   colorMode: document.querySelectorAll('input[name="colorMode"]'),
   singleColorPicker: document.querySelector("#singleColorPicker"),
   multiColorHex: document.querySelector("#multiColorHex"),
   randomColorBtn: document.querySelector("#randomColorBtn"),
+
+  /* Action buttons */
   generateBtn: document.querySelector("#generateBtn"),
   autoLayoutBtn: document.querySelector("#autoLayoutBtn"),
   sampleBtn: document.querySelector("#sampleBtn"),
   shuffleBtn: document.querySelector("#shuffleBtn"),
   downloadPngBtn: document.querySelector("#downloadPngBtn"),
   downloadSvgBtn: document.querySelector("#downloadSvgBtn"),
+
+  /* Batch */
   batchCount: document.querySelector("#batchCount"),
   batchFormat: document.querySelector("#batchFormat"),
   batchOutputMode: document.querySelector("#batchOutputMode"),
   batchDownloadCountBtn: document.querySelector("#batchDownloadCountBtn"),
   batchDownloadJsonBtn: document.querySelector("#batchDownloadJsonBtn"),
   batchStatus: document.querySelector("#batchStatus"),
+  batchMode: document.querySelectorAll('input[name="batchMode"]'),
+
+  /* Preview */
   repeatPreview: document.querySelector("#repeatPreview"),
   tileFrame: document.querySelector("#tileFrame"),
   canvas: document.querySelector("#tileCanvas"),
   previewScale: document.querySelector("#previewScale"),
   statusText: document.querySelector("#statusText"),
+
+  /* Output labels */
   baseScaleValue: document.querySelector("#baseScaleValue"),
   scaleVarianceValue: document.querySelector("#scaleVarianceValue"),
   rotationValue: document.querySelector("#rotationValue"),
   spacingValue: document.querySelector("#spacingValue"),
   jitterValue: document.querySelector("#jitterValue"),
+  repeatCountValue: document.querySelector("#repeatCountValue"),
+
+  /* Stats */
   coverageLabel: document.querySelector("#coverageLabel"),
   coverageBar: document.querySelector("#coverageBar"),
   statCoverage: document.querySelector("#statCoverage"),
@@ -68,15 +99,15 @@ const els = {
   statLargest: document.querySelector("#statLargest"),
   statSmallest: document.querySelector("#statSmallest"),
   statCanvasSize: document.querySelector("#statCanvasSize"),
-  repeatCount: document.querySelector("#repeatCount"),
-  repeatCountValue: document.querySelector("#repeatCountValue"),
+
+  /* JSON settings */
   exportJsonBtn: document.querySelector("#exportJsonBtn"),
   importJsonInput: document.querySelector("#importJsonInput"),
+
+  /* File actions */
   checkAllBtn: document.querySelector("#checkAllBtn"),
   uncheckAllBtn: document.querySelector("#uncheckAllBtn"),
   resetFilesBtn: document.querySelector("#resetFilesBtn"),
-  batchMode: document.querySelectorAll('input[name="batchMode"]'),
-  layoutSelect: document.querySelector("#layoutSelect"),
 };
 
 const ctx = els.canvas.getContext("2d");
@@ -1315,116 +1346,17 @@ function initHelpTooltips() {
   });
 }
 
-/* ---------- EVENT LISTENERS ---------- */
-const sliderInputs = [
-  els.count, els.seed, els.baseScale, els.scaleVariance, els.rotation, els.spacing, els.jitter,
-];
-sliderInputs.forEach((el) => {
-  el.addEventListener("input", () => {
-    updateLabels();
-    drawPattern().catch(console.error);
-  });
-});
-els.allowEdgeCuts.addEventListener("input", () => drawPattern().catch(console.error));
-
-const colorChangeInputs = [els.multiColorHex, els.singleColorPicker, ...els.colorMode];
-colorChangeInputs.forEach((el) => {
-  el.addEventListener("input", () => {
-    state.colorVersion = (state.colorVersion || 0) + 1;
-    state.placements.forEach((item) => {
-      delete item.renderSource;
-      delete item._colorVersion;
-    });
-    drawPattern().catch(console.error);
-  });
-});
-
-els.bgMode.forEach((input) =>
-  input.addEventListener("input", () => drawPattern().catch(console.error)),
-);
-els.bgColorPicker.addEventListener("input", () => drawPattern().catch(console.error));
-
-els.randomColorBtn.addEventListener("click", () => {
-  const total = clamp(Math.round(numberFrom(els.count)) || 6, 3, 12);
-  els.multiColorHex.value = Array.from({ length: total }, randomHexColor).join(", ");
-  setRadioValue(els.colorMode, "multi");
-  state.colorVersion = (state.colorVersion || 0) + 1;
-  state.placements.forEach((item) => {
-    delete item.renderSource;
-    delete item._colorVersion;
-  });
-  drawPattern().catch(console.error);
-});
-
-els.tileWidth.addEventListener("input", () => {
-  syncHeightToWidth();
-  updateExportLabels();
-  drawPattern().catch(console.error);
-});
-els.tileHeight.addEventListener("input", () => {
-  syncWidthToHeight();
-  updateExportLabels();
-  drawPattern().catch(console.error);
-});
-els.aspectRatio.addEventListener("change", () => {
-  syncHeightToWidth();
-  updateExportLabels();
-  drawPattern().catch(console.error);
-});
-
-els.file.addEventListener("change", handleFiles);
-els.thumbStrip.addEventListener("change", (event) => {
-  const id = Number(event.target.dataset.toggle);
-  if (!id) return;
-  const source = state.sources.find((item) => item.id === id);
-  if (source) source.checked = event.target.checked;
-  updateFileLabel();
-  drawPattern().catch(console.error);
-});
-els.thumbStrip.addEventListener("click", (event) => {
-  const id = Number(event.target.dataset.remove);
-  if (!id) return;
-  const index = state.sources.findIndex((item) => item.id === id);
-  if (index === -1) return;
-  URL.revokeObjectURL(state.sources[index].url);
-  state.sources.splice(index, 1);
-  renderThumbStrip();
-  updateFileLabel();
-  drawPattern().catch(console.error);
-});
-
-els.generateBtn.addEventListener("click", () => drawPattern().catch(console.error));
-els.autoLayoutBtn.addEventListener("click", applyAutoLayout);
-els.sampleBtn.addEventListener("click", useSampleSvg);
-els.shuffleBtn.addEventListener("click", shuffleSeed);
-els.downloadPngBtn.addEventListener("click", downloadPng);
-els.downloadSvgBtn.addEventListener("click", downloadSvg);
-els.batchDownloadCountBtn.addEventListener("click", batchDownloadByCount);
-els.batchDownloadJsonBtn.addEventListener("click", batchDownloadByJson);
-els.previewScale.addEventListener("input", () => updatePreviewBackground());
-els.showTile.addEventListener("input", () => updatePreviewBackground());
-els.repeatCount.addEventListener("input", () => {
-  updateRepeatLabel();
-  updatePreviewBackground();
-});
-
-els.checkAllBtn.addEventListener("click", checkAllFiles);
-els.uncheckAllBtn.addEventListener("click", uncheckAllFiles);
-els.resetFilesBtn.addEventListener("click", resetFiles);
-els.exportJsonBtn.addEventListener("click", exportSettings);
-els.importJsonInput.addEventListener("change", (e) => {
-  if (e.target.files.length) importSettings(e.target.files[0]);
-  e.target.value = "";
-});
-els.layoutSelect.addEventListener("change", () => drawPattern().catch(console.error));
-
 /* ---------- SIDEBAR TOGGLE ---------- */
 function initSidebarToggle() {
   const sidebar = els.controlsSidebar;
-  const workspace = document.querySelector("#workspace");
-  const toggleBtn = document.querySelector("#sidebarToggle");
-  const toggleArea = document.querySelector("#sidebarToggleArea");
-  if (!sidebar || !workspace || !toggleBtn) return;
+  const workspace = els.workspace;
+  const toggleBtn = els.sidebarToggle;
+  const toggleArea = els.sidebarToggleArea;
+
+  if (!sidebar || !workspace || !toggleBtn) {
+    console.warn("[Sidebar] Elemen tidak ditemukan, toggle dinonaktifkan.");
+    return;
+  }
 
   const isCollapsed = localStorage.getItem("sidebarCollapsed") === "true";
 
@@ -1433,8 +1365,11 @@ function initSidebarToggle() {
     workspace.classList.toggle("sidebar-collapsed", collapsed);
     toggleBtn.setAttribute("aria-expanded", String(!collapsed));
     toggleBtn.setAttribute("aria-label", collapsed ? "Expand sidebar" : "Collapse sidebar");
-    toggleBtn.title = collapsed ? "Expand sidebar (Ctrl+B)" : "Collapse sidebar (Ctrl+B)";
-    toggleBtn.querySelector("span").textContent = collapsed ? "▶" : "◀";
+    toggleBtn.title = collapsed
+      ? "Expand sidebar (Ctrl+B)"
+      : "Collapse sidebar (Ctrl+B)";
+    const span = toggleBtn.querySelector("span");
+    if (span) span.textContent = collapsed ? "▶" : "◀";
   }
 
   applyState(isCollapsed);
@@ -1449,7 +1384,10 @@ function initSidebarToggle() {
     e.stopPropagation();
     toggleSidebar();
   });
-  if (toggleArea) toggleArea.addEventListener("click", toggleSidebar);
+
+  if (toggleArea) {
+    toggleArea.addEventListener("click", toggleSidebar);
+  }
 
   document.addEventListener("keydown", (e) => {
     if ((e.ctrlKey || e.metaKey) && (e.key === "b" || e.key === "B")) {
@@ -1459,9 +1397,128 @@ function initSidebarToggle() {
   });
 }
 
+/* ---------- EVENT LISTENERS ---------- */
+function bindEventListeners() {
+  const sliderInputs = [
+    els.count, els.seed, els.baseScale, els.scaleVariance,
+    els.rotation, els.spacing, els.jitter,
+  ];
+
+  sliderInputs.forEach((el) => {
+    el.addEventListener("input", () => {
+      updateLabels();
+      drawPattern().catch(console.error);
+    });
+  });
+
+  els.allowEdgeCuts.addEventListener("input", () =>
+    drawPattern().catch(console.error),
+  );
+
+  const colorChangeInputs = [els.multiColorHex, els.singleColorPicker, ...els.colorMode];
+  colorChangeInputs.forEach((el) => {
+    el.addEventListener("input", () => {
+      state.colorVersion = (state.colorVersion || 0) + 1;
+      state.placements.forEach((item) => {
+        delete item.renderSource;
+        delete item._colorVersion;
+      });
+      drawPattern().catch(console.error);
+    });
+  });
+
+  els.bgMode.forEach((input) =>
+    input.addEventListener("input", () => drawPattern().catch(console.error)),
+  );
+  els.bgColorPicker.addEventListener("input", () =>
+    drawPattern().catch(console.error),
+  );
+
+  els.randomColorBtn.addEventListener("click", () => {
+    const total = clamp(Math.round(numberFrom(els.count)) || 6, 3, 12);
+    els.multiColorHex.value = Array.from({ length: total }, randomHexColor).join(", ");
+    setRadioValue(els.colorMode, "multi");
+    state.colorVersion = (state.colorVersion || 0) + 1;
+    state.placements.forEach((item) => {
+      delete item.renderSource;
+      delete item._colorVersion;
+    });
+    drawPattern().catch(console.error);
+  });
+
+  els.tileWidth.addEventListener("input", () => {
+    syncHeightToWidth();
+    updateExportLabels();
+    drawPattern().catch(console.error);
+  });
+  els.tileHeight.addEventListener("input", () => {
+    syncWidthToHeight();
+    updateExportLabels();
+    drawPattern().catch(console.error);
+  });
+  els.aspectRatio.addEventListener("change", () => {
+    syncHeightToWidth();
+    updateExportLabels();
+    drawPattern().catch(console.error);
+  });
+
+  els.file.addEventListener("change", handleFiles);
+
+  els.thumbStrip.addEventListener("change", (event) => {
+    const id = Number(event.target.dataset.toggle);
+    if (!id) return;
+    const source = state.sources.find((item) => item.id === id);
+    if (source) source.checked = event.target.checked;
+    updateFileLabel();
+    drawPattern().catch(console.error);
+  });
+
+  els.thumbStrip.addEventListener("click", (event) => {
+    const id = Number(event.target.dataset.remove);
+    if (!id) return;
+    const index = state.sources.findIndex((item) => item.id === id);
+    if (index === -1) return;
+    URL.revokeObjectURL(state.sources[index].url);
+    state.sources.splice(index, 1);
+    renderThumbStrip();
+    updateFileLabel();
+    drawPattern().catch(console.error);
+  });
+
+  els.generateBtn.addEventListener("click", () => drawPattern().catch(console.error));
+  els.autoLayoutBtn.addEventListener("click", applyAutoLayout);
+  els.sampleBtn.addEventListener("click", useSampleSvg);
+  els.shuffleBtn.addEventListener("click", shuffleSeed);
+  els.downloadPngBtn.addEventListener("click", downloadPng);
+  els.downloadSvgBtn.addEventListener("click", downloadSvg);
+  els.batchDownloadCountBtn.addEventListener("click", batchDownloadByCount);
+  els.batchDownloadJsonBtn.addEventListener("click", batchDownloadJson);
+
+  els.previewScale.addEventListener("input", () => updatePreviewBackground());
+  els.showTile.addEventListener("input", () => updatePreviewBackground());
+  els.repeatCount.addEventListener("input", () => {
+    updateRepeatLabel();
+    updatePreviewBackground();
+  });
+
+  els.checkAllBtn.addEventListener("click", checkAllFiles);
+  els.uncheckAllBtn.addEventListener("click", uncheckAllFiles);
+  els.resetFilesBtn.addEventListener("click", resetFiles);
+  els.exportJsonBtn.addEventListener("click", exportSettings);
+  els.importJsonInput.addEventListener("change", (e) => {
+    if (e.target.files.length) importSettings(e.target.files[0]);
+    e.target.value = "";
+  });
+  els.layoutSelect.addEventListener("change", () =>
+    drawPattern().catch(console.error),
+  );
+}
+
 /* ---------- INIT ---------- */
 function init() {
   initSidebarToggle();
+  bindEventListeners();
+
   updateLabels();
   syncHeightToWidth();
   updateExportLabels();
