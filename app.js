@@ -704,52 +704,106 @@ function downloadPng() {
   );
 }
 
-function svgFilterId(hex) {
-  return `recolor-${hex.replace("#", "").toLowerCase()}`;
+/* ---------- TRUE-VECTOR SVG EXPORT HELPERS ---------- */
+function getSourceViewBoxRect(svgText) {
+  const doc = new DOMParser().parseFromString(svgText, "image/svg+xml");
+  const svg = doc.querySelector("svg");
+  if (!svg) return { minX: 0, minY: 0, width: 100, height: 100 };
+
+  const viewBox = svg.getAttribute("viewBox");
+  if (viewBox) {
+    const parts = viewBox.split(/[\s,]+/).map(Number);
+    if (parts.length === 4 && parts[2] > 0 && parts[3] > 0) {
+      return { minX: parts[0], minY: parts[1], width: parts[2], height: parts[3] };
+    }
+  }
+
+  const width = Number.parseFloat(svg.getAttribute("width")) || 100;
+  const height = Number.parseFloat(svg.getAttribute("height")) || 100;
+  return { minX: 0, minY: 0, width, height };
+}
+
+function svgInnerMarkup(svgText) {
+  const doc = new DOMParser().parseFromString(svgText, "image/svg+xml");
+  const svg = doc.querySelector("svg");
+  if (!svg) return "";
+  return Array.from(svg.children)
+    .map((child) => new XMLSerializer().serializeToString(child))
+    .join("");
+}
+
+// Recolor every drawable node to one flat color (mirrors the canvas
+// "source-atop" silhouette fill used for single-color mode), but by
+// rewriting fill/stroke attributes directly on the vector nodes instead
+// of raster-compositing, so the result stays fully vector.
+function forceFlatColor(svgText, color) {
+  const doc = new DOMParser().parseFromString(svgText, "image/svg+xml");
+  const svg = doc.querySelector("svg");
+  if (!svg) return svgText;
+
+  const tagsToColor = ["path", "circle", "rect", "ellipse", "polygon", "polyline", "line", "text"];
+
+  function processElement(el) {
+    const tagName = el.tagName.toLowerCase();
+    if (tagsToColor.includes(tagName)) {
+      const isFillNone = el.getAttribute("fill") === "none";
+      if (!isFillNone) el.setAttribute("fill", color);
+      if (el.hasAttribute("stroke") && el.getAttribute("stroke") !== "none") {
+        el.setAttribute("stroke", color);
+      }
+    }
+    Array.from(el.children).forEach(processElement);
+  }
+
+  Array.from(svg.children).forEach(processElement);
+  return new XMLSerializer().serializeToString(doc);
 }
 
 function buildSvgMarkup(settings, placements) {
-  const sourceHrefs = new Map();
-  placements.forEach((item) => {
-    if (!sourceHrefs.has(item.source.id)) {
-      sourceHrefs.set(
-        item.source.id,
-        `data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(item.source.text)))}`,
-      );
-    }
-  });
+  // Cache the recolored inner markup per item (not per wrap-offset repeat),
+  // so a single item's 1-9 wrapped copies at the tile edges reuse the same
+  // parsed/recolored content without re-parsing.
+  const itemContentCache = new Map(); // item.id -> { inner, viewBox }
 
-  const usedColors = new Map();
-  placements.forEach((item) => {
-    if (item.color && !usedColors.has(item.color)) {
-      usedColors.set(item.color, svgFilterId(item.color));
-    }
-  });
+  function contentFor(item) {
+    const cached = itemContentCache.get(item.id);
+    if (cached) return cached;
 
-  const filterDefs = Array.from(usedColors.entries())
-    .map(
-      ([hex, filterId]) =>
-        `<filter id="${filterId}" x="-20%" y="-20%" width="140%" height="140%"><feFlood flood-color="${escapeAttr(hex)}" result="flood" /><feComposite in="flood" in2="SourceGraphic" operator="in" /></filter>`,
-    )
-    .join("\n    ");
+    let text = item.source.text;
+    if (settings.coloring.mode === "single") {
+      text = forceFlatColor(text, settings.coloring.singleColor);
+    } else if (settings.coloring.mode === "multi" && settings.coloring.colors.length) {
+      // Same seed formula as renderSourceFor()'s canvas path, so the SVG
+      // export matches the PNG's per-subpath multi-coloring.
+      const seed = (settings.seed || 0) + (item.source?.id || 0) + (item.id || 0);
+      text = modifySvgWithMultiColors(text, settings.coloring.colors, seed);
+    }
+
+    const result = { inner: svgInnerMarkup(text), viewBox: getSourceViewBoxRect(text) };
+    itemContentCache.set(item.id, result);
+    return result;
+  }
 
   const images = placements
-    .flatMap((item) =>
-      PatternCollision.wrapOffsets(item, settings).map(({ dx, dy }) => {
+    .flatMap((item) => {
+      const { inner, viewBox } = contentFor(item);
+      const scaleX = viewBox.width ? item.width / viewBox.width : 1;
+      const scaleY = viewBox.height ? item.height / viewBox.height : 1;
+      const centerX = -(viewBox.minX + viewBox.width / 2);
+      const centerY = -(viewBox.minY + viewBox.height / 2);
+
+      return PatternCollision.wrapOffsets(item, settings).map(({ dx, dy }) => {
         const x = item.x + dx;
         const y = item.y + dy;
-        const href = sourceHrefs.get(item.source.id);
-        const filterAttr = item.color
-          ? ` filter="url(#${usedColors.get(item.color)})"`
-          : "";
-        return [
-          `<image href="${href}"${filterAttr}`,
-          `x="${escapeAttr(-item.width / 2)}" y="${escapeAttr(-item.height / 2)}"`,
-          `width="${escapeAttr(item.width)}" height="${escapeAttr(item.height)}"`,
-          `transform="translate(${escapeAttr(x)} ${escapeAttr(y)}) rotate(${escapeAttr(item.rotation)})" />`,
+        const transform = [
+          `translate(${escapeAttr(x)} ${escapeAttr(y)})`,
+          `rotate(${escapeAttr(item.rotation)})`,
+          `scale(${escapeAttr(scaleX)} ${escapeAttr(scaleY)})`,
+          `translate(${escapeAttr(centerX)} ${escapeAttr(centerY)})`,
         ].join(" ");
-      }),
-    )
+        return `<g transform="${transform}">${inner}</g>`;
+      });
+    })
     .join("\n    ");
 
   const backgroundRect =
@@ -759,9 +813,8 @@ function buildSvgMarkup(settings, placements) {
 
   return [
     `<svg xmlns="http://www.w3.org/2000/svg" width="${settings.width}" height="${settings.height}" viewBox="0 0 ${settings.width} ${settings.height}">`,
-    `  <defs><clipPath id="tileClip"><rect width="${settings.width}" height="${settings.height}" /></clipPath>${filterDefs ? `\n    ${filterDefs}` : ""}</defs>`,
     `  ${backgroundRect}`,
-    `  <g clip-path="url(#tileClip)">`,
+    `  <g>`,
     `    ${images}`,
     `  </g>`,
     `</svg>`,
@@ -1084,7 +1137,7 @@ async function* batchGeneratorByJson(jsonData, format) {
         };
       }
     } else {
-      const sources = mode === "all" ? state.sources : checkedSources();
+      const sources = sourcesToProcess;
       for (let s = 0; s < sources.length; s++) {
         const source = sources[s];
         state.sources.forEach((src) => (src.checked = false));
