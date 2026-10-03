@@ -381,7 +381,8 @@ function makeCandidate(index, settings, random, longSide, aspect, point = null) 
 }
 
 function candidatePositionForAttempt(index, attempt, settings, random, candidate, placed) {
-  if (attempt === 0 && settings.allowEdgeCuts && index < 4) {
+  const isUnstructured = !settings.layout || settings.layout === 'scattered' || settings.layout === 'tossed' || settings.layout === 'default';
+  if (attempt === 0 && settings.allowEdgeCuts && isUnstructured && index < 4) {
     return { x: candidate.x, y: candidate.y };
   }
   return PatternDistribution.positionForAttempt({
@@ -405,12 +406,15 @@ function placeOneObject(index, settings, random, baseLongSide, placed, sources) 
 
   const isGrid = settings.layout === "neat-grid";
   const canvasAspect = settings.width / (settings.height || 1);
-  const cols = Math.max(1, Math.round(Math.sqrt(settings.count * canvasAspect)));
-  const rows = Math.max(1, Math.ceil(settings.count / cols));
+  let cols = Math.max(1, Math.round(Math.sqrt(settings.count * canvasAspect)));
+  let rows = Math.max(1, Math.ceil(settings.count / cols));
+  while (cols * rows < settings.count) {
+    cols += 1;
+  }
   const cellSide = Math.min(settings.width / cols, settings.height / rows);
 
   const maxLongSide = isGrid ? cellSide * 0.88 : Math.min(settings.width, settings.height);
-  const spacing = isGrid ? Math.min(settings.spacing, cellSide * 0.1) : settings.spacing;
+  const spacing = isGrid ? 0 : settings.spacing;
 
   const initialLongSide = clamp(
     baseLongSide * variance,
