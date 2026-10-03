@@ -323,7 +323,7 @@ function modifySvgWithMultiColors(svgText, colors, seed) {
 
   const random = mulberry32(seed);
   const tagsToColor = [
-    "path", "circle", "rect", "ellipse", "polygon", "polyline", "line", "text", "g",
+    "path", "circle", "rect", "ellipse", "polygon", "polyline", "line", "text",
   ];
 
   function processElement(el) {
@@ -956,9 +956,18 @@ async function* batchGeneratorByCount(count, format) {
     : Array.from({ length: count }, () => Math.floor(Math.random() * 999999) + 1);
 
   const mode = document.querySelector('input[name="batchMode"]:checked')?.value || "checked";
-  const sourcesToProcess = mode === "all" ? state.sources.slice() : checkedSources();
+  let sourcesToProcess;
 
-  if (!sourcesToProcess.length) {
+  if (mode === "all") sourcesToProcess = state.sources.slice();
+  else if (mode === "original") sourcesToProcess = null;
+  else sourcesToProcess = checkedSources();
+
+  if (mode === "original") {
+    if (!checkedSources().length) {
+      els.batchStatus.textContent = "Tidak ada file SVG yang dicentang untuk mode Original.";
+      return;
+    }
+  } else if (!sourcesToProcess || !sourcesToProcess.length) {
     els.batchStatus.textContent = "Tidak ada file SVG untuk diproses.";
     return;
   }
@@ -969,42 +978,68 @@ async function* batchGeneratorByCount(count, format) {
     const seed = seeds[i];
     els.seed.value = seed;
 
-    for (let s = 0; s < sourcesToProcess.length; s++) {
-      const source = sourcesToProcess[s];
-      state.sources.forEach((src) => (src.checked = false));
-      source.checked = true;
-      renderThumbStrip();
-      updateFileLabel();
-
+    if (mode === "original") {
       await drawPattern();
       await nextFrame();
 
       const settings = getSettings();
       const index = i + 1;
-      const idxSource = s + 1;
-      const sourceFolder = source.name.replace(/\.svg$/i, "");
-      const baseName = `${sourceFolder}-${index}-${seed}`;
+      const baseName = `combined-${index}-${seed}`;
 
-      els.batchStatus.textContent = `[${index}/${seeds.length}] [${idxSource}/${sourcesToProcess.length}] ${source.name} (seed ${seed})...`;
+      els.batchStatus.textContent = `[${index}/${seeds.length}] Original combined (seed ${seed})...`;
 
       if (format === "png" || format === "both") {
         const blob = await canvasToBlob(els.canvas);
-        if (blob) yield { name: `${sourceFolder}/${baseName}.png`, input: blob, lastModified: new Date() };
+        if (blob) yield { name: `original/${baseName}.png`, input: blob, lastModified: new Date() };
       }
       if (format === "svg" || format === "both") {
         const svg = buildSvgMarkup(settings, state.placements);
         yield {
-          name: `${sourceFolder}/${baseName}.svg`,
+          name: `original/${baseName}.svg`,
           input: new Blob([svg], { type: "image/svg+xml" }),
           lastModified: new Date(),
         };
       }
+    } else {
+      for (let s = 0; s < sourcesToProcess.length; s++) {
+        const source = sourcesToProcess[s];
+        state.sources.forEach((src) => (src.checked = false));
+        source.checked = true;
+        renderThumbStrip();
+        updateFileLabel();
+
+        await drawPattern();
+        await nextFrame();
+
+        const settings = getSettings();
+        const index = i + 1;
+        const idxSource = s + 1;
+        const sourceFolder = source.name.replace(/\.svg$/i, "");
+        const baseName = `${sourceFolder}-${index}-${seed}`;
+
+        els.batchStatus.textContent = `[${index}/${seeds.length}] [${idxSource}/${sourcesToProcess.length}] ${source.name} (seed ${seed})...`;
+
+        if (format === "png" || format === "both") {
+          const blob = await canvasToBlob(els.canvas);
+          if (blob) yield { name: `${sourceFolder}/${baseName}.png`, input: blob, lastModified: new Date() };
+        }
+        if (format === "svg" || format === "both") {
+          const svg = buildSvgMarkup(settings, state.placements);
+          yield {
+            name: `${sourceFolder}/${baseName}.svg`,
+            input: new Blob([svg], { type: "image/svg+xml" }),
+            lastModified: new Date(),
+          };
+        }
+      }
     }
   }
 
-  state.sources.forEach((src, idx) => (src.checked = backupChecked[idx]));
-  renderThumbStrip();
-  updateFileLabel();
+  if (mode !== "original") {
+    state.sources.forEach((src, idx) => (src.checked = backupChecked[idx]));
+    renderThumbStrip();
+    updateFileLabel();
+  }
 }
 
 /* ---------- BATCH DOWNLOAD BY COUNT ---------- */
@@ -1182,17 +1217,33 @@ async function* batchGeneratorByJson(jsonData, format) {
 
 /* ---------- APPLY SETTINGS FROM OBJECT ---------- */
 function applySettingsFromObject(data) {
-  if (data.tileWidth) els.tileWidth.value = data.tileWidth;
-  if (data.tileHeight) els.tileHeight.value = data.tileHeight;
+  const width = data.tileWidth ?? data.width;
+  if (width !== undefined) els.tileWidth.value = width;
+
+  const height = data.tileHeight ?? data.height;
+  if (height !== undefined) els.tileHeight.value = height;
+
   if (data.count !== undefined) els.count.value = data.count;
   if (data.seed !== undefined) els.seed.value = data.seed;
-  if (data.baseScale !== undefined) els.baseScale.value = data.baseScale;
-  if (data.scaleVariance !== undefined) els.scaleVariance.value = data.scaleVariance;
+
+  if (data.baseScale !== undefined) {
+    els.baseScale.value = (data.baseScale <= 1 && data.baseScale > 0) ? Math.round(data.baseScale * 100) : data.baseScale;
+  }
+  if (data.scaleVariance !== undefined) {
+    els.scaleVariance.value = (data.scaleVariance <= 1 && data.scaleVariance > 0) ? Math.round(data.scaleVariance * 100) : data.scaleVariance;
+  }
   if (data.rotation !== undefined) els.rotation.value = data.rotation;
   if (data.spacing !== undefined) els.spacing.value = data.spacing;
-  if (data.jitter !== undefined) els.jitter.value = data.jitter;
+  if (data.jitter !== undefined) {
+    els.jitter.value = (data.jitter <= 1 && data.jitter > 0) ? Math.round(data.jitter * 100) : data.jitter;
+  }
   if (data.allowEdgeCuts !== undefined) els.allowEdgeCuts.checked = data.allowEdgeCuts;
-  if (data.layout) els.layoutSelect.value = data.layout;
+
+  const rawLayout = data.layout ?? data.distribution;
+  const layout = rawLayout === "blue-noise" ? "scattered" : rawLayout;
+  if (layout && Array.from(els.layoutSelect.options).some((opt) => opt.value === layout)) {
+    els.layoutSelect.value = layout;
+  }
 
   if (data.background) {
     if (data.background.mode) setRadioValue(els.bgMode, data.background.mode);
