@@ -34,8 +34,11 @@
   }
 
   function gridPosition(index, settings, random, jitterFactor = 1) {
-    const cols = Math.max(1, Math.ceil(Math.sqrt(settings.count * (settings.width / settings.height))));
-    const rows = Math.max(1, Math.ceil(settings.count / cols));
+    const aspect = settings.width / (settings.height || 1);
+    const count = Math.max(1, settings.count || 1);
+    const cols = Math.max(1, Math.round(Math.sqrt(count * aspect)));
+    const rows = Math.max(1, Math.ceil(count / cols));
+
     const col = index % cols;
     const row = Math.floor(index / cols) % rows;
     const cellW = settings.width / cols;

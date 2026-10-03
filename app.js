@@ -365,7 +365,8 @@ function makeCandidate(index, settings, random, longSide, aspect, point = null) 
   const dimensions = dimensionsForLongSide(longSide, aspect);
   const rotation = settings.rotation === 0 ? 0 : (random() * 2 - 1) * settings.rotation;
   const base = { width: dimensions.width, height: dimensions.height, rotation };
-  const edgePoint = settings.allowEdgeCuts && index < 4 ? edgeAnchor(index, settings, random) : null;
+  const isUnstructured = !settings.layout || settings.layout === 'scattered' || settings.layout === 'tossed' || settings.layout === 'default';
+  const edgePoint = settings.allowEdgeCuts && isUnstructured && index < 4 ? edgeAnchor(index, settings, random) : null;
   const position = edgePoint ?? point ?? PatternDistribution.randomPosition(settings, random, base);
 
   return {
@@ -401,10 +402,20 @@ function placeOneObject(index, settings, random, baseLongSide, placed, sources) 
   const aspect = Math.max(0.05, source.aspect || 1);
   const color = pickColorForItem(settings, random);
   const variance = 1 + (random() - 0.5) * settings.scaleVariance;
+
+  const isGrid = settings.layout === "neat-grid";
+  const canvasAspect = settings.width / (settings.height || 1);
+  const cols = Math.max(1, Math.round(Math.sqrt(settings.count * canvasAspect)));
+  const rows = Math.max(1, Math.ceil(settings.count / cols));
+  const cellSide = Math.min(settings.width / cols, settings.height / rows);
+
+  const maxLongSide = isGrid ? cellSide * 0.88 : Math.min(settings.width, settings.height);
+  const spacing = isGrid ? Math.min(settings.spacing, cellSide * 0.1) : settings.spacing;
+
   const initialLongSide = clamp(
     baseLongSide * variance,
     8,
-    Math.min(settings.width, settings.height),
+    maxLongSide,
   );
 
   for (let shrinkStep = 0; shrinkStep <= MAX_SHRINK_STEPS; shrinkStep += 1) {
@@ -416,7 +427,7 @@ function placeOneObject(index, settings, random, baseLongSide, placed, sources) 
       candidate.x = point.x;
       candidate.y = point.y;
 
-      if (!PatternCollision.collidesWithExisting(candidate, placed, settings, settings.spacing)) {
+      if (!PatternCollision.collidesWithExisting(candidate, placed, settings, spacing)) {
         candidate.attempts = attempt + 1;
         candidate.scaleReduction = shrinkStep;
         candidate.source = source;
